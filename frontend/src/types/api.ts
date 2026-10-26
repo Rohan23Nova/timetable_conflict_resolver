@@ -143,3 +143,71 @@ export interface ApiError {
   detail?: string | Record<string, unknown>;
   code?: string;
 }
+
+export interface ValidationReport {
+  is_valid: boolean;
+  errors: string[];
+  checks_performed: string[];
+  conflicts: [string, string, number][];
+  missing_examinations: string[];
+  unknown_examinations: string[];
+  invalid_color_values: [string, unknown][];
+  out_of_range_colors: [string, number][];
+  metadata: Record<string, unknown>;
+}
+
+export interface SlotAssignmentDetail {
+  exam_code: string;
+  exam_name: string;
+  slot: number;
+  department?: string | null;
+  semester?: string | null;
+  degree: number;
+}
+
+export interface ScheduleRunRequest {
+  algorithm: "greedy" | "backtracking";
+  ordering_strategy?: "descending_degree" | "natural";
+  max_colors?: number | null;
+  max_nodes?: number | null;
+  timeout_seconds?: number | null;
+}
+
+export interface ScheduleCompareRequest {
+  ordering_strategy?: "descending_degree" | "natural";
+  max_colors?: number | null;
+  max_nodes?: number | null;
+  timeout_seconds?: number | null;
+}
+
+export interface ScheduleRunResponse {
+  run_id: string;
+  algorithm: "greedy" | "backtracking" | string;
+  ordering_strategy: string;
+  max_colors?: number | null;
+  status: "COMPLETED" | "INFEASIBLE" | "RESOURCE_LIMITED" | "INCOMPLETE" | "INVALID" | string;
+  is_complete: boolean;
+  is_valid: boolean;
+  slots_used: number;
+  slot_assignments: Record<string, number>;
+  slot_details: SlotAssignmentDetail[];
+  slots_summary: Record<number, string[]>;
+  execution_time_ms: number;
+  vertex_count: number;
+  edge_count: number;
+  validation_report: ValidationReport;
+  statistics: Record<string, unknown>;
+  explanation: string;
+  created_at: string;
+}
+
+export interface ScheduleCompareResponse {
+  compare_id: string;
+  timestamp: string;
+  vertex_count: number;
+  edge_count: number;
+  max_colors_constraint?: number | null;
+  greedy_result: ScheduleRunResponse;
+  backtracking_result: ScheduleRunResponse;
+  summary_explanation: string;
+}

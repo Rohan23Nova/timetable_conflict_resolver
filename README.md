@@ -445,13 +445,13 @@ The frontend will be available at `http://localhost:5173/` (Landing) and `http:/
 ### Verification & Testing Commands
 
 ```bash
-# Backend pytest suite (94 passing tests)
+# Backend pytest suite (104 passing tests)
 .venv/bin/pytest -v
 
 # Frontend TypeScript type check
 cd frontend && npm run typecheck
 
-# Frontend test suite (53 passing tests across 8 test files)
+# Frontend test suite (59 passing tests across 9 test files)
 cd frontend && npm test -- --run
 
 # Frontend production build
@@ -485,6 +485,45 @@ The conflict graph $G = (V, E)$ represents institutional examination scheduling 
   - **Viewport Controls & Navigation:** Smooth pan, zoom (0.2x to 2.5x), Fit to Viewport button, interactive MiniMap with state-colored nodes, and subtle background dot texture.
   - **Compact Visual Legend (`GraphLegend.tsx`):** Collapsible legend explaining node rings (selected amber, neighbour teal, hub, isolated) and conflict edge weights.
   - **Tabular Conflict Matrix Toggle:** Retains the dual-table inspection tabs for Vertices & Adjacency and Weighted Conflict Edges alongside the interactive visual canvas.
+
+---
+
+## 13. Phase 7: Algorithm Laboratory & Timetable Generation
+
+SLOTWISE Phase 7 introduces the **Algorithm Laboratory**, accessible at `/algorithm-lab` and `/app/algorithms`. It provides a comprehensive, interactive workbench to configure, execute, benchmark, and compare graph-coloring heuristics and exact branch-and-bound algorithms using real university examination and enrolment data.
+
+### Algorithmic Foundations & Backend Orchestration
+
+1. **Greedy Graph Coloring ($O(V^2)$ / Welsh-Powell Heuristic):**
+   - **Ordering Strategies:** Orders vertices by `descending_degree` (Welsh-Powell degree heuristic) or `natural` (input order). Welsh-Powell prioritizes high-degree constraint hubs early, minimizing total chromatic slots.
+   - **Upper Bound:** Produces an upper bound on $\chi(G)$ guaranteed to satisfy $\chi(G) \le \Delta(G) + 1$ (Brook's Theorem).
+   - **Optional Slot Ceiling:** Allows specifying a target slot cap $k$. If the heuristic exceeds $k$, returns status `INCOMPLETE` with partial assignments.
+
+2. **Exact Backtracking ($O(k^V)$ / State-Space Search):**
+   - **Decision Tree & Forward Checking:** Explores depth-first assignment of color slots $[1..k]$ to vertices, pruning infeasible branches when adjacent constraints are violated.
+   - **Exhaustive Infeasibility Certificate:** When the entire state space is exhaustively explored without finding a coloring, proves mathematical infeasibility for $k$ slots (status `INFEASIBLE`).
+   - **Safe Resource Limits:** Guards against exponential explosion via configurable `max_nodes` (default: 100,000) and `timeout_seconds` (default: 5.0s). Exceeding limits returns `RESOURCE_LIMITED`, explicitly informing the user that search was truncated without falsely declaring mathematical infeasibility.
+
+3. **Mandatory Independent Constraint Validation:**
+   - Every execution run is automatically piped through `validate_schedule()` (`backend/app/validation/validator.py`).
+   - A schedule is only stamped `is_valid: true` if:
+     - Completeness: Every registered exam is assigned to a slot.
+     - Pairwise Invariant: For all $(u, v) \in E(G)$, $\text{slot}(u) \ne \text{slot}(v)$.
+     - Contiguity: Assigned slots fall strictly within $[1..k]$.
+
+4. **Side-by-Side Comparison Mode ("Run Both"):**
+   - Runs Welsh-Powell and Exact Backtracking concurrently against the exact same conflict graph snapshot.
+   - Produces a comparative benchmark comparing slots used, CPU duration (ms), nodes explored, backtracks, and theoretical time complexity.
+
+### Frontend Features & User Experience
+
+- **Configurable Solver Workbench:** Mode selector tabs for Greedy, Backtracking, and Run Both. Dynamic Brooks' Bound recommendation button ($\Delta(G) + 1$) for setting sensible slot targets.
+- **Result Metrics Bar & Plain-Language Narrative:** Real-time metrics for status (`COMPLETED`, `INFEASIBLE`, `RESOURCE_LIMITED`, `INCOMPLETE`), slots required, execution time (μs/ms), and 0-conflict validation badge. Pedagogical narrative explains algorithm decisions, bottlenecks, and bounds.
+- **Slot Allocation Grid ("Schedule View"):** Visual swimlane columns for each time slot (`Slot 1`, `Slot 2`, ...). Each slot header uses accessible, deterministic color tokens from `getSlotTheme(slot)`. Course cards display code, title, department, semester, student count, and conflict degree.
+- **Real-Time Conflict Graph Coloring:** The Conflict Graph Explorer directly reflects active slot assignments, tinting nodes and displaying "Slot X" badges while preserving selection rings, edge highlighting, and layout options.
+- **Independent Validation Certificate Tab:** Detailed breakdown of checks performed, zero-conflict certificate, and invariant verification guarantees.
+- **Side-by-Side Benchmark Matrix:** Comparative analytical table evaluating Greedy vs. Backtracking metrics and trade-offs.
+- **Execution History:** Cached session run drawer allowing past solutions to be reloaded into the viewer with a single click.
 
 
 

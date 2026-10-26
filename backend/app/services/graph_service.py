@@ -5,6 +5,7 @@ from typing import Dict, List, Set
 from sqlalchemy.orm import Session
 
 from backend.app.graph.builder import build_conflict_graph
+from backend.app.graph.model import ConflictGraph
 from backend.app.repositories.enrolment_repository import EnrolmentRepository
 from backend.app.repositories.examination_repository import ExaminationRepository
 from backend.app.schemas.graph import (
@@ -18,13 +19,40 @@ class GraphService:
     """Service that computes the conflict graph dynamically from persistent enrolments."""
 
     @classmethod
-    def get_conflict_graph(cls, db: Session) -> ConflictGraphResponse:
-        """Construct the conflict graph using Phase 1 graph builder from persistent DB data."""
-        # 1. Fetch all examinations and enrolments
+    def build_conflict_graph_model(
+        cls, db: Session
+    ) -> tuple[ConflictGraph, Dict[str, dict]]:
+        """Construct ground-truth Phase 1 ConflictGraph and course metadata from persistent DB data."""
         exams = ExaminationRepository.get_all(db)
         enrolments = EnrolmentRepository.get_all(db)
 
-        # Handle empty dataset cleanly
+        exam_by_code: Dict[str, dict] = {}
+        for exam in exams:
+            exam_by_code[exam.code] = {
+                "id": exam.id,
+                "code": exam.code,
+                "name": exam.name,
+                "department": exam.department,
+                "semester": exam.semester,
+            }
+
+        enrolment_tuples = []
+        for enrolment in enrolments:
+            if enrolment.student and enrolment.exam:
+                enrolment_tuples.append((enrolment.student.student_id, enrolment.exam.code))
+
+        graph = build_conflict_graph(
+            examinations=[e.code for e in exams],
+            enrolments=enrolment_tuples,
+        )
+        return graph, exam_by_code
+
+    @classmethod
+    def get_conflict_graph(cls, db: Session) -> ConflictGraphResponse:
+        """Construct the conflict graph using Phase 1 graph builder from persistent DB data."""
+        exams = ExaminationRepository.get_all(db)
+        enrolments = EnrolmentRepository.get_all(db)
+
         if not exams:
             return ConflictGraphResponse(
                 vertex_count=0,
@@ -36,32 +64,13 @@ class GraphService:
                 adjacency={},
             )
 
-        # 2. Build mapping of exam code to metadata for vertices
-        exam_by_code: Dict[str, dict] = {}
-        for exam in exams:
-            exam_by_code[exam.code] = {
-                "id": exam.id,
-                "code": exam.code,
-                "name": exam.name,
-                "department": exam.department,
-                "semester": exam.semester,
-            }
+        graph, exam_by_code = cls.build_conflict_graph_model(db)
 
-        # 3. Track students enrolled in each exam to calculate edge weights & shared students
+        # Track students enrolled in each exam to calculate edge weights & shared students
         students_by_exam: Dict[str, Set[str]] = defaultdict(set)
-        enrolment_tuples = []
         for enrolment in enrolments:
             if enrolment.student and enrolment.exam:
-                student_code = enrolment.student.student_id
-                exam_code = enrolment.exam.code
-                students_by_exam[exam_code].add(student_code)
-                enrolment_tuples.append((student_code, exam_code))
-
-        # 4. Construct graph using Phase 1 graph builder
-        graph = build_conflict_graph(
-            examinations=[e.code for e in exams],
-            enrolments=enrolment_tuples,
-        )
+                students_by_exam[enrolment.exam.code].add(enrolment.student.student_id)
 
         # 5. Extract degrees, isolated exams, and adjacency
         degrees: Dict[str, int] = {}

@@ -1,7 +1,8 @@
 import { memo } from "react";
 import { Handle, Position, NodeProps } from "@xyflow/react";
 import type { GraphVertex } from "@/types/api";
-import { BookOpen, CheckCircle, Warning } from "@phosphor-icons/react";
+import { BookOpen, CheckCircle, Warning, CalendarCheck } from "@phosphor-icons/react";
+import { getSlotTheme } from "@/lib/slotColors";
 
 export interface ExamNodeData {
   vertex: GraphVertex;
@@ -9,15 +10,17 @@ export interface ExamNodeData {
   isNeighbor?: boolean;
   isDimmed?: boolean;
   isSearchMatch?: boolean;
+  assignedSlot?: number;
 }
 
 export const ExamNode = memo(({ data }: NodeProps) => {
   const nodeData = data as unknown as ExamNodeData;
-  const { vertex, isSelected, isNeighbor, isDimmed, isSearchMatch } = nodeData;
+  const { vertex, isSelected, isNeighbor, isDimmed, isSearchMatch, assignedSlot } = nodeData;
 
   const isIsolated = vertex.degree === 0;
+  const slotTheme = assignedSlot ? getSlotTheme(assignedSlot) : null;
 
-  // Determine container styling based on selection and state
+  // Determine container styling based on selection, slot assignment, and state
   let containerClasses =
     "w-48 rounded-lg border bg-surface p-3 transition-all duration-200 select-none shadow-card text-left relative cursor-pointer ";
 
@@ -32,6 +35,9 @@ export const ExamNode = memo(({ data }: NodeProps) => {
       "border-accent-amber ring-1 ring-accent-amber shadow-subtle z-10 ";
   } else if (isDimmed) {
     containerClasses += "opacity-25 border-border-subtle bg-surface/50 ";
+  } else if (slotTheme) {
+    // Scheduled state: tint border and background according to assigned time slot
+    containerClasses += `${slotTheme.borderClass} ${slotTheme.bgClass} hover:shadow-subtle `;
   } else if (isIsolated) {
     containerClasses += "border-dashed border-status-success/40 hover:border-status-success ";
   } else {
@@ -114,7 +120,7 @@ export const ExamNode = memo(({ data }: NodeProps) => {
         style={{ left: "50%", top: "50%" }}
       />
 
-      {/* Node Header: Code and Degree Badge */}
+      {/* Node Header: Code, Slot Pill, and Degree Badge */}
       <div className="flex items-center justify-between gap-1 mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="font-mono font-bold text-xs text-accent-amber tracking-tight truncate">
@@ -127,12 +133,24 @@ export const ExamNode = memo(({ data }: NodeProps) => {
             <span className="w-1.5 h-1.5 rounded-full bg-accent-teal" />
           )}
         </div>
-        <span
-          className={degreeBadgeClasses}
-          title={`Conflict Degree: ${vertex.degree} conflicting course(s)`}
-        >
-          {isIsolated ? "d=0" : `d=${vertex.degree}`}
-        </span>
+
+        <div className="flex items-center gap-1">
+          {slotTheme && (
+            <span
+              className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${slotTheme.badgeClass}`}
+              title={`Assigned Time Slot ${assignedSlot}`}
+              data-testid={`slot-badge-${vertex.code}`}
+            >
+              Slot {assignedSlot}
+            </span>
+          )}
+          <span
+            className={degreeBadgeClasses}
+            title={`Conflict Degree: ${vertex.degree} conflicting course(s)`}
+          >
+            {isIsolated ? "d=0" : `d=${vertex.degree}`}
+          </span>
+        </div>
       </div>
 
       {/* Node Body: Course Name */}
@@ -146,7 +164,12 @@ export const ExamNode = memo(({ data }: NodeProps) => {
           {vertex.department || vertex.semester || "General"}
         </span>
 
-        {isIsolated ? (
+        {slotTheme ? (
+          <span className={`inline-flex items-center gap-0.5 font-medium ${slotTheme.textClass}`}>
+            <CalendarCheck size={10} weight="bold" />
+            <span>Scheduled</span>
+          </span>
+        ) : isIsolated ? (
           <span className="inline-flex items-center gap-0.5 text-status-success font-medium">
             <CheckCircle size={10} weight="bold" />
             <span>Isolated</span>

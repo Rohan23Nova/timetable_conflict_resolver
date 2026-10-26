@@ -45,7 +45,6 @@ const nodeTypes = {
   examNode: ExamNode,
 };
 
-// Canvas wrapper to allow calling useReactFlow()
 interface InnerCanvasProps {
   initialNodes: Node[];
   initialEdges: Edge[];
@@ -53,6 +52,7 @@ interface InnerCanvasProps {
   onSelectNode: (id: string | null) => void;
   selectedVertex: GraphVertex | null;
   conflictingDetails: ConflictingExamDetail[];
+  slotsUsed?: number;
 }
 
 const ConflictGraphCanvasInner: React.FC<InnerCanvasProps> = ({
@@ -62,6 +62,7 @@ const ConflictGraphCanvasInner: React.FC<InnerCanvasProps> = ({
   onSelectNode,
   selectedVertex,
   conflictingDetails,
+  slotsUsed,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -137,7 +138,7 @@ const ConflictGraphCanvasInner: React.FC<InnerCanvasProps> = ({
 
       {/* Floating Legend */}
       <div className="absolute bottom-4 left-4 z-10 max-w-xs">
-        <GraphLegend />
+        <GraphLegend slotsUsed={slotsUsed} />
       </div>
 
       {/* Floating Fit View Quick Action */}
@@ -168,18 +169,37 @@ const ConflictGraphCanvasInner: React.FC<InnerCanvasProps> = ({
   );
 };
 
-export const ConflictGraphPage: React.FC = () => {
+export interface ConflictGraphPageProps {
+  initialSlotAssignments?: Record<string, number> | null;
+  initialSlotsUsed?: number;
+  hideHeader?: boolean;
+}
+
+export const ConflictGraphPage: React.FC<ConflictGraphPageProps> = ({
+  initialSlotAssignments,
+  initialSlotsUsed,
+  hideHeader = false,
+}) => {
   const [data, setData] = useState<ConflictGraphResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [slotAssignments, setSlotAssignments] = useState<Record<string, number> | null>(
+    initialSlotAssignments || null
+  );
 
   // Filters & layout state
+  const [viewMode, setViewMode] = useState<"canvas" | "table">("canvas");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [filterMode, setFilterMode] = useState<"all" | "conflicts" | "isolated" | "hubs">("all");
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("concentric");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"canvas" | "table">("canvas");
   const [activeTab, setActiveTab] = useState<"vertices" | "edges">("vertices");
+
+  useEffect(() => {
+    if (initialSlotAssignments !== undefined) {
+      setSlotAssignments(initialSlotAssignments);
+    }
+  }, [initialSlotAssignments]);
 
   const fetchGraph = useCallback(async () => {
     setIsLoading(true);
@@ -243,15 +263,16 @@ export const ConflictGraphPage: React.FC = () => {
     return details.sort((a, b) => b.weight - a.weight || a.neighbor.code.localeCompare(b.neighbor.code));
   }, [selectedVertex, edges, vertices]);
 
-  // Compute Layout Result
+  // Compute Layout Result with optional slotAssignments
   const layoutResult = useMemo(() => {
     return computeGraphLayout(vertices, edges, {
       mode: layoutMode,
       selectedNodeId,
       searchTerm,
       filterMode,
+      slotAssignments,
     });
-  }, [vertices, edges, layoutMode, selectedNodeId, searchTerm, filterMode]);
+  }, [vertices, edges, layoutMode, selectedNodeId, searchTerm, filterMode, slotAssignments]);
 
   // Filtered views for tabular mode
   const filteredVertices = useMemo(
@@ -278,61 +299,63 @@ export const ConflictGraphPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 lg:p-8" data-testid="conflict-graph-page">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
-        <div>
+      {!hideHeader && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border-subtle">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-content-primary tracking-tight">
+                Conflict Graph Explorer
+              </h1>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-teal/10 text-accent-teal border border-accent-teal/20">
+                Interactive G=(V,E)
+              </span>
+            </div>
+            <p className="text-sm text-content-secondary mt-1">
+              Visual conflict representation where examinations are vertices and shared student enrolments form edges.
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-content-primary tracking-tight">
-              Conflict Graph Explorer
-            </h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-teal/10 text-accent-teal border border-accent-teal/20">
-              Interactive G=(V,E)
-            </span>
-          </div>
-          <p className="text-sm text-content-secondary mt-1">
-            Visual conflict representation where examinations are vertices and shared student enrolments form edges.
-          </p>
-        </div>
+            {/* View Mode Toggle */}
+            <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-border-subtle">
+              <button
+                type="button"
+                onClick={() => setViewMode("canvas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "canvas"
+                    ? "bg-surface text-accent-amber font-semibold shadow-subtle border border-border-subtle"
+                    : "text-content-secondary hover:text-content-primary"
+                }`}
+              >
+                <Eye size={14} />
+                <span>Canvas</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === "table"
+                    ? "bg-surface text-accent-amber font-semibold shadow-subtle border border-border-subtle"
+                    : "text-content-secondary hover:text-content-primary"
+                }`}
+              >
+                <Table size={14} />
+                <span>Matrix</span>
+              </button>
+            </div>
 
-        <div className="flex items-center gap-2">
-          {/* View Mode Toggle */}
-          <div className="flex p-0.5 bg-surface-elevated rounded-lg border border-border-subtle">
-            <button
-              type="button"
-              onClick={() => setViewMode("canvas")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                viewMode === "canvas"
-                  ? "bg-surface text-accent-amber font-semibold shadow-subtle border border-border-subtle"
-                  : "text-content-secondary hover:text-content-primary"
-              }`}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={fetchGraph}
+              disabled={isLoading}
+              leftIcon={<ArrowClockwise size={14} className={isLoading ? "animate-spin" : ""} />}
             >
-              <Eye size={14} />
-              <span>Canvas</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                viewMode === "table"
-                  ? "bg-surface text-accent-amber font-semibold shadow-subtle border border-border-subtle"
-                  : "text-content-secondary hover:text-content-primary"
-              }`}
-            >
-              <Table size={14} />
-              <span>Matrix</span>
-            </button>
+              Refresh
+            </Button>
           </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={fetchGraph}
-            disabled={isLoading}
-            leftIcon={<ArrowClockwise size={14} className={isLoading ? "animate-spin" : ""} />}
-          >
-            Refresh
-          </Button>
         </div>
-      </div>
+      )}
 
       {/* Error Banner */}
       {error && (
@@ -610,6 +633,7 @@ export const ConflictGraphPage: React.FC = () => {
                 onSelectNode={setSelectedNodeId}
                 selectedVertex={selectedVertex}
                 conflictingDetails={conflictingDetails}
+                slotsUsed={initialSlotsUsed}
               />
             </ReactFlowProvider>
 

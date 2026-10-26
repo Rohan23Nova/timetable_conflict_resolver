@@ -15,6 +15,10 @@ import {
   HealthResponse,
   SampleDataLoadRequest,
   SampleDataSummaryResponse,
+  ScheduleCompareRequest,
+  ScheduleCompareResponse,
+  ScheduleRunRequest,
+  ScheduleRunResponse,
   Student,
   StudentCreate,
   StudentListResponse,
@@ -264,6 +268,51 @@ class ApiClient {
         method: "POST",
         body: JSON.stringify(payload),
       });
+    },
+  };
+
+  // Scheduling & Algorithm Laboratory API
+  public readonly scheduling = {
+    run: async (
+      payload: ScheduleRunRequest,
+      signal?: AbortSignal
+    ): Promise<ScheduleRunResponse> => {
+      return this.request<ScheduleRunResponse>("/scheduling/run", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal,
+      });
+    },
+
+    compare: async (
+      payload: ScheduleCompareRequest,
+      signal?: AbortSignal
+    ): Promise<ScheduleCompareResponse> => {
+      return this.request<ScheduleCompareResponse>("/scheduling/compare", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal,
+      });
+    },
+
+    listRuns: async (signal?: AbortSignal): Promise<ScheduleRunResponse[]> => {
+      return this.request<ScheduleRunResponse[]>("/scheduling/runs", {
+        method: "GET",
+        signal,
+      });
+    },
+
+    getRun: async (
+      runId: string,
+      signal?: AbortSignal
+    ): Promise<ScheduleRunResponse> => {
+      return this.request<ScheduleRunResponse>(
+        `/scheduling/runs/${encodeURIComponent(runId)}`,
+        {
+          method: "GET",
+          signal,
+        }
+      );
     },
   };
 }

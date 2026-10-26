@@ -9,6 +9,7 @@ import { OverviewPage } from "./OverviewPage";
 import { ExaminationsPage } from "./ExaminationsPage";
 import { StudentsPage } from "./StudentsPage";
 import { ConflictGraphPage } from "./ConflictGraphPage";
+import { AlgorithmLabPage } from "./AlgorithmLabPage";
 import { PlaceholderPage } from "./PlaceholderPage";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -117,17 +118,11 @@ export const router = createBrowserRouter(
         },
         {
           path: "algorithms",
-          element: (
-            <PlaceholderPage
-              title="Algorithm Laboratory"
-              description="Inspect Welsh-Powell vs. Backtracking performance, search nodes explored, backtracks, and elapsed time."
-              targetPhase="Phase 4"
-              dependencies={[
-                "Phase 1 Diagnostic Telemetry in metadata (Completed)",
-                "Phase 4 Real-time Algorithmic Profiler UI",
-              ]}
-            />
-          ),
+          element: <AlgorithmLabPage />,
+        },
+        {
+          path: "algorithm-lab",
+          element: <AlgorithmLabPage />,
         },
         {
           path: "comparison",
@@ -182,6 +177,7 @@ export const router = createBrowserRouter(
     { path: "/generate", element: <Navigate to="/app/generate" replace /> },
     { path: "/calendar", element: <Navigate to="/app/calendar" replace /> },
     { path: "/algorithms", element: <Navigate to="/app/algorithms" replace /> },
+    { path: "/algorithm-lab", element: <Navigate to="/app/algorithms" replace /> },
     { path: "/comparison", element: <Navigate to="/app/comparison" replace /> },
     { path: "/import-export", element: <Navigate to="/app/import-export" replace /> },
     { path: "/settings", element: <Navigate to="/app/settings" replace /> },

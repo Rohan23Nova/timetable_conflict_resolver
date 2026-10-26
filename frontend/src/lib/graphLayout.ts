@@ -8,6 +8,7 @@ export interface LayoutOptions {
   selectedNodeId: string | null;
   searchTerm: string;
   filterMode: "all" | "conflicts" | "isolated" | "hubs";
+  slotAssignments?: Record<string, number> | null;
 }
 
 export interface GraphLayoutResult {
@@ -214,6 +215,7 @@ export function computeGraphLayout(
     );
 
     const pos = nodePositions.get(v.code) || { x: 0, y: 0 };
+    const assignedSlot = options.slotAssignments ? options.slotAssignments[v.code] : undefined;
 
     return {
       id: v.code,
@@ -225,6 +227,7 @@ export function computeGraphLayout(
         isNeighbor,
         isDimmed,
         isSearchMatch,
+        assignedSlot,
       },
     };
   });
