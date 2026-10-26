@@ -1,4 +1,4 @@
-# SLOTWISE — University Exam Timetable Conflict Resolver (Phase 1)
+# SLOTWISE — University Exam Timetable Conflict Resolver (Exam Scheduling Studio)
 
 **SLOTWISE** is a University Examination Timetable Conflict Resolver built on graph-theoretic models and Design and Analysis of Algorithms (DAA) principles. 
 
@@ -287,4 +287,29 @@ npm test
 # Build production bundle
 npm run build
 ```
+
+---
+
+## 9. Phase 3: Landing Page & Authentication
+
+Phase 3 introduces the public landing page and authentication experience:
+
+- **Public Marketing Landing Page (`/`):**
+  - Brand identity: **SLOTWISE** (*Exam Scheduling Studio*).
+  - Primary message: *"Every exam has its place. Every conflict has a solution."*
+  - **Interactive Conflict Graph Illustration:** Custom SVG-based visualization demonstrating examinations as vertices, concurrent student registrations as conflict edges, and valid chromatic time slots without conflicts.
+  - **Feature Showcase:** Conflict graph construction, Welsh-Powell greedy coloring, exact backtracking with node budgets, independent timetable validation, and algorithm diagnostics.
+  - **Three-Step Workflow:** Ingest student enrolments $\to$ Construct conflict graph $\to$ Solve & independently verify.
+  - **Algorithm Comparison:** Transparent trade-off matrix contrasting polynomial heuristic speed ($O(|V|^2 + |E|)$) with exponential exact verification ($O(k^{|V|})$).
+  - Seamless navigation, dark/light theme switching, and responsive design.
+
+- **Authentication System:**
+  - **Login Route (`/login`):** Email and password validation, show/hide password toggle, loading submission states, explicit error handling, and return-to-destination redirection (`?returnUrl=...`).
+  - **Signup Route (`/signup`):** Full name, academic email, minimum 8-character password with complexity rules, confirmation password matching, and submission error states.
+  - **Architecture & Security:**
+    - Typed authentication service (`authService`) with standardized error codes (`INVALID_CREDENTIALS`, `EMAIL_TAKEN`, `BACKEND_UNAVAILABLE`).
+    - `AuthContext` state management providing user session status and reactive updates.
+    - `ProtectedRoute` component guarding `/app/*` routes with automatic redirects to login.
+    - **No Dummy Logins / No Plaintext Passwords:** When backend persistence is offline (prior to Phase 4 API endpoints), forms cleanly notify users that authentication services require the backend API without accepting fake credentials or exposing passwords.
+
 

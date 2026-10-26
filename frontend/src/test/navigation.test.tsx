@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, Link } from "react-router-dom";
 import { ThemeProvider } from "../context/ThemeContext";
 import { ToastProvider } from "../context/ToastContext";
 import { AppShell } from "../components/layout/AppShell";
 import { OverviewPage } from "../routes/OverviewPage";
 import { PlaceholderPage } from "../routes/PlaceholderPage";
 
-const renderWithRouter = (initialRoute = "/") => {
+const renderWithRouter = (initialRoute = "/app") => {
   return render(
     <ThemeProvider>
       <ToastProvider>
@@ -16,7 +16,19 @@ const renderWithRouter = (initialRoute = "/") => {
           future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
           <Routes>
-            <Route path="/" element={<AppShell />}>
+            <Route path="/login" element={<div>Login Page Mock</div>} />
+            <Route path="/signup" element={<div>Signup Page Mock</div>} />
+            <Route
+              path="/"
+              element={
+                <div>
+                  <h1>Landing Page Mock</h1>
+                  <Link to="/login">Sign In</Link>
+                  <Link to="/signup">Get Started</Link>
+                </div>
+              }
+            />
+            <Route path="/app" element={<AppShell />}>
               <Route index element={<OverviewPage />} />
               <Route
                 path="examinations"
@@ -37,13 +49,23 @@ const renderWithRouter = (initialRoute = "/") => {
   );
 };
 
-describe("Navigation & App Shell Behavior", () => {
+describe("Navigation & Route Transitions", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("renders brand mark, descriptor, and overview page", () => {
+  it("navigates between public routes", () => {
     renderWithRouter("/");
+
+    expect(screen.getByText("Landing Page Mock")).toBeInTheDocument();
+
+    const signInLink = screen.getByRole("link", { name: "Sign In" });
+    fireEvent.click(signInLink);
+    expect(screen.getByText("Login Page Mock")).toBeInTheDocument();
+  });
+
+  it("renders AppShell brand mark and overview page in /app", () => {
+    renderWithRouter("/app");
 
     // Verify Brand title & product descriptor
     expect(screen.getAllByText("SLOTWISE").length).toBeGreaterThan(0);
@@ -51,8 +73,8 @@ describe("Navigation & App Shell Behavior", () => {
     expect(screen.getByText("Welcome to SLOTWISE")).toBeInTheDocument();
   });
 
-  it("navigates to placeholder route and renders roadmap status", () => {
-    renderWithRouter("/");
+  it("navigates to placeholder route inside AppShell and renders roadmap status", () => {
+    renderWithRouter("/app");
 
     // Click on Examinations link in sidebar
     const examLinks = screen.getAllByText("Examinations");
@@ -66,7 +88,7 @@ describe("Navigation & App Shell Behavior", () => {
   });
 
   it("toggles desktop sidebar collapse state", () => {
-    renderWithRouter("/");
+    renderWithRouter("/app");
 
     const collapseButton = screen.getByLabelText("Collapse sidebar");
     expect(collapseButton).toBeInTheDocument();

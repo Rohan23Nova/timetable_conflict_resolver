@@ -24,14 +24,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar }) => {
 
   // Find current route title from navItems
   const currentNav = navItems.find((item) =>
-    item.href === "/" ? location.pathname === "/" : location.pathname.startsWith(item.href)
+    item.href === "/app"
+      ? location.pathname === "/app" || location.pathname === "/app/"
+      : location.pathname.startsWith(item.href)
   );
 
   const pageTitle = currentNav?.label || "Overview";
 
   const breadcrumbItems: BreadcrumbItem[] = [
-    { label: "Studio", href: "/" },
-    ...(location.pathname !== "/"
+    { label: "Studio", href: "/app" },
+    ...(location.pathname !== "/app" && location.pathname !== "/app/"
       ? [{ label: pageTitle, isCurrent: true }]
       : [{ label: "Overview", isCurrent: true }]),
   ];
