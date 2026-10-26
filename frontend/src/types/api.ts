@@ -211,3 +211,66 @@ export interface ScheduleCompareResponse {
   backtracking_result: ScheduleRunResponse;
   summary_explanation: string;
 }
+
+export interface ScheduleDateConfig {
+  start_date?: string | null;
+  slots_per_day?: number;
+  session_times?: string[];
+  slot_duration_minutes?: number;
+  slot_break_minutes?: number;
+  skip_weekends?: boolean;
+}
+
+export interface ScheduleCreateRequest {
+  name: string;
+  description?: string | null;
+  algorithm: string;
+  parameters?: Record<string, unknown>;
+  slot_assignments: Record<string, number>;
+  slot_details: SlotAssignmentDetail[];
+  slots_used: number;
+  is_valid: boolean;
+  validation_report: ValidationReport;
+  date_config?: ScheduleDateConfig | null;
+}
+
+export interface ScheduleUpdateRequest {
+  name?: string;
+  description?: string | null;
+  date_config?: ScheduleDateConfig | null;
+}
+
+export interface ScheduleSummaryResponse {
+  id: string;
+  name: string;
+  description?: string | null;
+  algorithm: string;
+  slots_used: number;
+  exam_count: number;
+  is_valid: boolean;
+  is_stale: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleDetailResponse {
+  id: string;
+  name: string;
+  description?: string | null;
+  algorithm: string;
+  parameters: Record<string, unknown>;
+  slot_assignments: Record<string, number>;
+  slot_details: SlotAssignmentDetail[];
+  slots_summary: Record<number, string[]>;
+  slots_used: number;
+  is_valid: boolean;
+  validation_report: ValidationReport;
+  graph_fingerprint: string;
+  is_stale: boolean;
+  current_graph_vertex_count?: number | null;
+  current_graph_edge_count?: number | null;
+  date_config?: ScheduleDateConfig | null;
+  created_at: string;
+  updated_at: string;
+}
+

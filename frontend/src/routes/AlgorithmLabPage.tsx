@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   TreeStructure,
   Sparkle,
@@ -17,6 +17,7 @@ import {
   Table,
   Graph,
   Info,
+  CalendarBlank,
 } from "@phosphor-icons/react";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -27,20 +28,25 @@ import { useToast } from "@/context/ToastContext";
 import { apiClient } from "@/services/apiClient";
 import type {
   ConflictGraphResponse,
-  ScheduleRunRequest,
   ScheduleCompareRequest,
-  ScheduleRunResponse,
   ScheduleCompareResponse,
+  ScheduleDetailResponse,
+  ScheduleRunRequest,
+  ScheduleRunResponse,
   SlotAssignmentDetail,
 } from "@/types/api";
 import { ConflictGraphPage } from "./ConflictGraphPage";
 import { getSlotTheme } from "@/lib/slotColors";
+import { SaveScheduleDialog } from "@/components/timetable/SaveScheduleDialog";
 
 type SolverMode = "greedy" | "backtracking" | "compare";
 type ActiveViewTab = "grid" | "graph" | "validation" | "compare" | "history";
 
 export const AlgorithmLabPage: React.FC = () => {
+  const navigate = useNavigate();
   const { addToast } = useToast();
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState<boolean>(false);
+
 
   // Conflict Graph state
   const [graphData, setGraphData] = useState<ConflictGraphResponse | null>(null);
@@ -741,34 +747,49 @@ export const AlgorithmLabPage: React.FC = () => {
               </Button>
             </div>
 
-            {/* If in compare mode, selector to switch active inspected solver */}
-            {compareResult && (
-              <div className="flex items-center gap-2 text-xs bg-[#151921] px-2.5 py-1 rounded-lg border border-border-strong">
-                <span className="text-content-secondary font-medium">Viewing Allocation:</span>
-                <button
-                  type="button"
-                  onClick={() => setActiveCompareAlgo("greedy")}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                    activeCompareAlgo === "greedy"
-                      ? "bg-accent-amber text-[#12141a]"
-                      : "text-content-secondary hover:text-content-primary"
-                  }`}
+            <div className="flex items-center gap-2">
+              {/* If in compare mode, selector to switch active inspected solver */}
+              {compareResult && (
+                <div className="flex items-center gap-2 text-xs bg-[#151921] px-2.5 py-1 rounded-lg border border-border-strong">
+                  <span className="text-content-secondary font-medium">Viewing Allocation:</span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCompareAlgo("greedy")}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                      activeCompareAlgo === "greedy"
+                        ? "bg-accent-amber text-[#12141a]"
+                        : "text-content-secondary hover:text-content-primary"
+                    }`}
+                  >
+                    Greedy ({compareResult.greedy_result.slots_used} slots)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCompareAlgo("backtracking")}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
+                      activeCompareAlgo === "backtracking"
+                        ? "bg-accent-amber text-[#12141a]"
+                        : "text-content-secondary hover:text-content-primary"
+                    }`}
+                  >
+                    Backtracking ({compareResult.backtracking_result.slots_used} slots)
+                  </button>
+                </div>
+              )}
+
+              {/* Save Schedule as Named Timetable button */}
+              {currentActiveResult && currentActiveResult.is_valid && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsSaveDialogOpen(true)}
+                  leftIcon={<CalendarBlank size={16} weight="bold" />}
+                  className="font-semibold text-xs whitespace-nowrap bg-emerald-600 hover:bg-emerald-500 text-white"
                 >
-                  Greedy ({compareResult.greedy_result.slots_used} slots)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveCompareAlgo("backtracking")}
-                  className={`px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                    activeCompareAlgo === "backtracking"
-                      ? "bg-accent-amber text-[#12141a]"
-                      : "text-content-secondary hover:text-content-primary"
-                  }`}
-                >
-                  Backtracking ({compareResult.backtracking_result.slots_used} slots)
-                </button>
-              </div>
-            )}
+                  Save as Named Timetable
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* TAB 1: Slot Allocation Grid */}
@@ -1210,6 +1231,22 @@ export const AlgorithmLabPage: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Save Schedule as Named Timetable Dialog */}
+      <SaveScheduleDialog
+        isOpen={isSaveDialogOpen}
+        onClose={() => setIsSaveDialogOpen(false)}
+        runResult={currentActiveResult}
+        onSaved={(saved: ScheduleDetailResponse) => {
+          addToast({
+            type: "success",
+            title: "Timetable Saved",
+            message: `"${saved.name}" successfully persisted with ${saved.slots_used} time slots.`,
+          });
+          navigate(`/app/timetable/${saved.id}`);
+        }}
+      />
     </div>
   );
 };
+

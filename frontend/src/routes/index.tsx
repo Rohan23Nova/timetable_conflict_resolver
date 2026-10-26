@@ -10,6 +10,8 @@ import { ExaminationsPage } from "./ExaminationsPage";
 import { StudentsPage } from "./StudentsPage";
 import { ConflictGraphPage } from "./ConflictGraphPage";
 import { AlgorithmLabPage } from "./AlgorithmLabPage";
+import { TimetableCalendarPage } from "./TimetableCalendarPage";
+import { TimetableHistoryPage } from "./TimetableHistoryPage";
 import { PlaceholderPage } from "./PlaceholderPage";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -104,17 +106,19 @@ export const router = createBrowserRouter(
         },
         {
           path: "calendar",
-          element: (
-            <PlaceholderPage
-              title="Timetable Calendar"
-              description="Conflict-free examination timetable grid organized by date, session slot, and room assignments."
-              targetPhase="Phase 4"
-              dependencies={[
-                "Phase 1 Non-Conflict Guarantee Engine (Completed)",
-                "Phase 4 Grid Calendar & Export Formatter",
-              ]}
-            />
-          ),
+          element: <TimetableCalendarPage />,
+        },
+        {
+          path: "timetable",
+          element: <TimetableCalendarPage />,
+        },
+        {
+          path: "timetable/history",
+          element: <TimetableHistoryPage />,
+        },
+        {
+          path: "timetable/:scheduleId",
+          element: <TimetableCalendarPage />,
         },
         {
           path: "algorithms",
@@ -176,6 +180,8 @@ export const router = createBrowserRouter(
     { path: "/conflict-graph", element: <Navigate to="/app/conflict-graph" replace /> },
     { path: "/generate", element: <Navigate to="/app/generate" replace /> },
     { path: "/calendar", element: <Navigate to="/app/calendar" replace /> },
+    { path: "/timetable", element: <Navigate to="/app/timetable" replace /> },
+    { path: "/timetable/history", element: <Navigate to="/app/timetable/history" replace /> },
     { path: "/algorithms", element: <Navigate to="/app/algorithms" replace /> },
     { path: "/algorithm-lab", element: <Navigate to="/app/algorithms" replace /> },
     { path: "/comparison", element: <Navigate to="/app/comparison" replace /> },

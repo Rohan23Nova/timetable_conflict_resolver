@@ -8,7 +8,6 @@ import {
   CalendarDots,
   CalendarCheck,
   TreeStructure,
-  FlowArrow,
   Database,
   GearSix,
   SidebarSimple,
@@ -27,13 +26,12 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { label: "Overview", href: "/app", icon: <House size={18} /> },
-  { label: "Examinations", href: "/app/examinations", icon: <GraduationCap size={18} />, phase: "Phase 4" },
-  { label: "Students & Enrolments", href: "/app/students", icon: <Student size={18} />, phase: "Phase 4" },
-  { label: "Conflict Graph", href: "/app/conflict-graph", icon: <Graph size={18} />, phase: "Phase 6" },
-  { label: "Generate Timetable", href: "/app/generate", icon: <CalendarDots size={18} />, phase: "Phase 8" },
-  { label: "Timetable Calendar", href: "/app/calendar", icon: <CalendarCheck size={18} />, phase: "Phase 8" },
-  { label: "Algorithm Laboratory", href: "/app/algorithms", icon: <TreeStructure size={18} />, phase: "Phase 7" },
-  { label: "Results & Comparison", href: "/app/comparison", icon: <FlowArrow size={18} />, phase: "Phase 8" },
+  { label: "Examinations", href: "/app/examinations", icon: <GraduationCap size={18} /> },
+  { label: "Students & Enrolments", href: "/app/students", icon: <Student size={18} /> },
+  { label: "Conflict Graph", href: "/app/conflict-graph", icon: <Graph size={18} /> },
+  { label: "Algorithm Laboratory", href: "/app/algorithms", icon: <TreeStructure size={18} /> },
+  { label: "Timetable Calendar", href: "/app/calendar", icon: <CalendarCheck size={18} /> },
+  { label: "Schedule History", href: "/app/timetable/history", icon: <CalendarDots size={18} /> },
   { label: "Data Import/Export", href: "/app/import-export", icon: <Database size={18} />, phase: "Phase 9" },
   { label: "Settings", href: "/app/settings", icon: <GearSix size={18} /> },
 ];

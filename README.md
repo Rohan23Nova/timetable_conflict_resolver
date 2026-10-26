@@ -525,7 +525,89 @@ SLOTWISE Phase 7 introduces the **Algorithm Laboratory**, accessible at `/algori
 - **Side-by-Side Benchmark Matrix:** Comparative analytical table evaluating Greedy vs. Backtracking metrics and trade-offs.
 - **Execution History:** Cached session run drawer allowing past solutions to be reloaded into the viewer with a single click.
 
+---
 
+## 14. Phase 8: Timetable Calendar, Schedule Management & Export
 
+SLOTWISE Phase 8 delivers a full-featured examination timetable management and publishing experience at `/timetable` and `/app/calendar` (with aliases `/app/timetable`, `/app/timetable/history`, `/app/timetable/:scheduleId`). It bridges mathematical graph coloring with university administrative workflows, calendar dates, and printable exports.
 
+### Persistent Schedule Architecture & Backend Storage
 
+- **Database Model (`backend/app/models/schedule.py`):**
+  - Table `schedules` stores persisted examination schedules with UUID primary keys.
+  - Snapshot fields: `id`, `name`, `description`, `algorithm`, `parameters`, `slot_assignments`, `slot_details`, `slots_used`, `is_valid`, `validation_report`, `graph_fingerprint`, `date_config`, `created_at`, `updated_at`.
+- **Deterministic Graph Fingerprinting & Stale Snapshot Detection:**
+  - `GraphService.compute_graph_fingerprint(db)` calculates a deterministic SHA-256 hash over sorted examinations and sorted weighted conflict edges: $\text{SHA-256}(V \cup E)$.
+  - Stored with each timetable at the moment of creation.
+  - When loading or listing schedules, compares stored fingerprint against the current graph. If source examinations or student enrolments changed, sets `is_stale: true`.
+  - Stale timetables display a prominent warning banner preserving the historical record while recommending re-generation.
+- **Strict Server-Side Validation Enforcement:**
+  - `POST /api/schedules` independently executes `validate_schedule(graph, request.slot_assignments)`.
+  - Rejects invalid schedules or schedules with mutual conflicts with `400 Bad Request`.
+  - Guarantees that only 100% verified, conflict-free timetables can ever be saved.
+- **Safe Timetable Deletion:**
+  - `DELETE /api/schedules/{id}` removes only the timetable snapshot.
+  - Underlying courses, students, and enrolments remain completely untouched.
+
+### Calendar Date-Time Mapping & Separation of Concerns
+
+- **Separation of Chromatic Colors and Real Dates:**
+  - Graph colors default to abstract mathematical slots (`Slot 1`, `Slot 2`, ...).
+  - Chromatic numbers are never conflated with arbitrary dates unless explicitly configured.
+- **Date & Session Configuration (`ScheduleDateConfig`):**
+  - Optional calendar mapping: examination start date, sessions per day (1, 2, or 3), session times (e.g. `09:00 - 12:00`, `14:00 - 17:00`), exam duration (minutes), inter-session breaks, and weekend skipping (Monday–Friday scheduling).
+  - Can be configured when saving or edited anytime via the **Date Settings** dialog.
+
+### Frontend Timetable Management & Views
+
+- **Slot Swimlane View:**
+  - Visual columns for each chromatic slot with slot headers, date/session badges, and exam count pills.
+  - Course cards showing course code, title, department, semester, and conflict degree $d(v)$.
+  - Conflict guarantee badge on each slot drawer confirming zero mutual student conflicts.
+- **Calendar Grid View:**
+  - Groups slots into calendar days (Day 1, Day 2, ...) with morning, midday, and afternoon session blocks.
+  - If dates are not yet configured, displays a prompt to configure dates or view slot swimlanes.
+- **Tabular View:**
+  - Sortable, filterable table listing Slot, Date, Session Window, Exam Code, Course Title, Department, Semester, Conflict Degree, and Graph Explorer link.
+- **Search & Department Filtering:**
+  - Live search by exam code, title, or department across all views.
+  - Department filter dropdown isolating courses by academic faculty.
+- **Slot Details Modal:**
+  - Detailed inspection of all courses scheduled concurrently in a single slot.
+  - Explicit mathematical proof of pairwise independence ($|S_u \cap S_v| = 0$).
+  - Direct links to inspect individual courses in the Conflict Graph Explorer.
+- **Timetable History Page (`/app/timetable/history`):**
+  - Comprehensive catalog of all saved timetable versions.
+  - Displays algorithm used, slots required, exam count, creation timestamp, and stale status.
+  - Actions: Open Timetable, Rename Title/Description, Export CSV, and Delete (with confirmation dialog).
+- **Save Timetable Integration from Algorithm Lab:**
+  - Prominent "Save as Named Timetable" button appears in the Algorithm Lab as soon as a valid solution is produced.
+  - Opens modal pre-filling title, parameters, and optional date settings.
+
+### Export & Printing
+
+- **RFC 4180 Compliant CSV Export:**
+  - Downloadable via `GET /api/schedules/{id}/export/csv` with `Content-Type: text/csv` and `Content-Disposition`.
+  - Standard headers: `Slot,Date,Session Time,Exam Code,Course Name,Department,Semester,Conflict Degree,Duration (Min)`.
+  - Deterministically sorted by slot ascending, then course code ascending.
+  - Full escaping of commas, quotes, and multiline text.
+- **Print-Ready Timetable (`@media print`):**
+  - "Print" button triggers `window.print()` with custom print stylesheets.
+  - Automatically hides navigation sidebars, headers, filter bars, and action buttons.
+  - Expands table to full page width with clear university headers for PDF printing.
+
+### Verification Commands
+
+```bash
+# Backend pytest suite (113 passing tests)
+.venv/bin/pytest -v
+
+# Frontend TypeScript type check
+cd frontend && npm run typecheck
+
+# Frontend Vitest test suite (67 passing tests across 10 test files)
+cd frontend && npm test -- --run
+
+# Frontend production build
+cd frontend && npm run build
+```

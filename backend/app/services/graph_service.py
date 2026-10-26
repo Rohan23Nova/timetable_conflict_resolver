@@ -1,5 +1,4 @@
-"""Service to build and serialize conflict graphs from persistent database records."""
-
+import hashlib
 from collections import defaultdict
 from typing import Dict, List, Set
 from sqlalchemy.orm import Session
@@ -17,6 +16,26 @@ from backend.app.schemas.graph import (
 
 class GraphService:
     """Service that computes the conflict graph dynamically from persistent enrolments."""
+
+    @classmethod
+    def compute_graph_fingerprint(cls, db: Session) -> str:
+        """Compute deterministic SHA-256 fingerprint of current graph structure and weights."""
+        graph, _ = cls.build_conflict_graph_model(db)
+        sorted_vertices = sorted(graph.vertices)
+
+        enrolments = EnrolmentRepository.get_all(db)
+        students_by_exam: Dict[str, Set[str]] = defaultdict(set)
+        for enrolment in enrolments:
+            if enrolment.student and enrolment.exam:
+                students_by_exam[enrolment.exam.code].add(enrolment.student.student_id)
+
+        edges_with_weights = []
+        for u, v in sorted(graph.get_edges()):
+            w = len(students_by_exam.get(u, set()) & students_by_exam.get(v, set()))
+            edges_with_weights.append(f"{u}-{v}:{w}")
+
+        canonical = f"V:{','.join(sorted_vertices)}|E:{','.join(edges_with_weights)}"
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @classmethod
     def build_conflict_graph_model(

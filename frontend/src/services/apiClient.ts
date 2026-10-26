@@ -17,8 +17,12 @@ import {
   SampleDataSummaryResponse,
   ScheduleCompareRequest,
   ScheduleCompareResponse,
+  ScheduleCreateRequest,
+  ScheduleDetailResponse,
   ScheduleRunRequest,
   ScheduleRunResponse,
+  ScheduleSummaryResponse,
+  ScheduleUpdateRequest,
   Student,
   StudentCreate,
   StudentListResponse,
@@ -315,6 +319,73 @@ class ApiClient {
       );
     },
   };
+
+  // Timetable Schedule Management API (Phase 8)
+  public readonly schedules = {
+    save: async (
+      payload: ScheduleCreateRequest,
+      signal?: AbortSignal
+    ): Promise<ScheduleDetailResponse> => {
+      return this.request<ScheduleDetailResponse>("/schedules", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal,
+      });
+    },
+
+    list: async (signal?: AbortSignal): Promise<ScheduleSummaryResponse[]> => {
+      return this.request<ScheduleSummaryResponse[]>("/schedules", {
+        method: "GET",
+        signal,
+      });
+    },
+
+    get: async (
+      scheduleId: string,
+      signal?: AbortSignal
+    ): Promise<ScheduleDetailResponse> => {
+      return this.request<ScheduleDetailResponse>(
+        `/schedules/${encodeURIComponent(scheduleId)}`,
+        {
+          method: "GET",
+          signal,
+        }
+      );
+    },
+
+    update: async (
+      scheduleId: string,
+      payload: ScheduleUpdateRequest,
+      signal?: AbortSignal
+    ): Promise<ScheduleDetailResponse> => {
+      return this.request<ScheduleDetailResponse>(
+        `/schedules/${encodeURIComponent(scheduleId)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+          signal,
+        }
+      );
+    },
+
+    delete: async (
+      scheduleId: string,
+      signal?: AbortSignal
+    ): Promise<{ message: string; id: string }> => {
+      return this.request<{ message: string; id: string }>(
+        `/schedules/${encodeURIComponent(scheduleId)}`,
+        {
+          method: "DELETE",
+          signal,
+        }
+      );
+    },
+
+    getExportCsvUrl: (scheduleId: string): string => {
+      return `${this.baseUrl}/schedules/${encodeURIComponent(scheduleId)}/export/csv`;
+    },
+  };
 }
 
 export const apiClient = new ApiClient();
+
