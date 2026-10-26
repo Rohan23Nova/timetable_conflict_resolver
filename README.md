@@ -445,18 +445,47 @@ The frontend will be available at `http://localhost:5173/` (Landing) and `http:/
 ### Verification & Testing Commands
 
 ```bash
-# Backend pytest suite (91 passing tests)
+# Backend pytest suite (94 passing tests)
 .venv/bin/pytest -v
 
 # Frontend TypeScript type check
 cd frontend && npm run typecheck
 
-# Frontend test suite (42 passing tests across 7 test files)
+# Frontend test suite (53 passing tests across 8 test files)
 cd frontend && npm test -- --run
 
 # Frontend production build
 cd frontend && npm run build
 ```
+
+---
+
+## 12. Phase 6: Interactive Conflict Graph Explorer
+
+SLOTWISE Phase 6 delivers a fully interactive, production-grade **Conflict Graph Explorer** on `/conflict-graph` (and `/app/conflict-graph`), powered by `@xyflow/react` v12, real backend graph data (`GET /api/graph/conflicts`), and mathematical graph-coloring principles.
+
+### Mathematical Invariants & Architecture
+
+The conflict graph $G = (V, E)$ represents institutional examination scheduling constraints:
+1. **Vertices $V$:** Each examination registered in the database is a vertex $v \in V$, regardless of whether it has conflicts.
+2. **Conflict Edges $E$:** An undirected edge $(u, v) \in E$ exists if and only if at least one student is enrolled in both course $u$ and course $v$.
+3. **No Self-Loops & No Duplicate Edges:** For all $v \in V$, $(v, v) \notin E$, and for each pair $\{u, v\}$, exactly one undirected edge exists.
+4. **Dynamic Edge Weights:** Each edge $(u, v)$ carries an exact weight $w(u, v) = |S_u \cap S_v|$ representing the exact count of shared students.
+5. **Conflict Degree $d(v)$:** The degree of vertex $v$ equals the number of incident conflict edges. Vertices with $d(v) = 0$ are isolated (can be scheduled in any slot), while vertices with $d(v) \ge 3$ are high-degree scheduling hubs.
+6. **Zero-Conflict Invariant:** If $|V| > 0$ and $|E| = 0$, all examinations are pairwise disjoint in student enrolment. The chromatic number is $\chi(G) = 1$, and an informative banner confirms that all courses can be scheduled concurrently in a single slot.
+
+### Key Interactive Features
+
+- **React Flow Canvas (`@xyflow/react`):**
+  - **Custom Examination Node (`ExamNode.tsx`):** Displays course code, full title, department/semester, conflict degree badge ($d(v)$), isolated badge, and 4-way docking handles for dynamic edge routing.
+  - **Deterministic Layout Engine (`graphLayout.ts`):** Partitions the graph into connected components using BFS and computes stable trigonometric coordinates ($x = cx + R \cos\theta, y = cy + R \sin\theta$) without node overlap or layout jitter. Supports **Concentric Hub Centrality**, **Circular**, and **Component Grid** layouts.
+  - **Interactive Highlighting & Dimming:** Clicking an exam node highlights it in accent amber, highlights its direct conflicting neighbours in accent teal, emphasizes incident edges with animated amber strokes, and dims unrelated nodes and edges to 25% opacity. Clicking empty canvas clears selection.
+  - **Sliding Details Panel (`GraphDetailsPanel.tsx`):** Detailed side drawer for the active course displaying course specifications, graph-coloring constraints, list of conflicting courses with student weight badges, expandable shared student rosters, and click-to-focus navigation to jump between connected courses.
+  - **Keyword Search & Instant Filter Pills:** Search by course code or subject title; filter by *All*, *Conflicted (d ≥ 1)*, *Isolated (d = 0)*, and *High Hubs (d ≥ 3)* with non-destructive state preservation.
+  - **Viewport Controls & Navigation:** Smooth pan, zoom (0.2x to 2.5x), Fit to Viewport button, interactive MiniMap with state-colored nodes, and subtle background dot texture.
+  - **Compact Visual Legend (`GraphLegend.tsx`):** Collapsible legend explaining node rings (selected amber, neighbour teal, hub, isolated) and conflict edge weights.
+  - **Tabular Conflict Matrix Toggle:** Retains the dual-table inspection tabs for Vertices & Adjacency and Weighted Conflict Edges alongside the interactive visual canvas.
+
 
 
 

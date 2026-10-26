@@ -49,3 +49,25 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 });
+
+// Mock ResizeObserver for React Flow
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+window.ResizeObserver = window.ResizeObserver || ResizeObserverMock;
+if (typeof global !== "undefined") {
+  (global as any).ResizeObserver = (global as any).ResizeObserver || ResizeObserverMock;
+}
+
+// Mock DOMMatrixReadOnly
+if (typeof window.DOMMatrixReadOnly === "undefined") {
+  (window as any).DOMMatrixReadOnly = class {
+    m22 = 1;
+    transformPoint(point: any) {
+      return point;
+    }
+  };
+}
+

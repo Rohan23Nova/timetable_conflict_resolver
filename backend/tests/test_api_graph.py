@@ -121,3 +121,86 @@ class TestConflictGraphEndpoint:
         res2 = client.get("/api/graph/conflicts")
         assert res2.json()["edge_count"] == 0
         assert set(res2.json()["isolated_examinations"]) == {"X1", "X2"}
+
+    def test_conflict_graph_two_exams_sharing_exactly_one_student(self, client):
+        """Two exams sharing exactly one student produce one edge of weight 1."""
+        client.post("/api/exams", json={"code": "C1", "name": "Chemistry I"})
+        client.post("/api/exams", json={"code": "P1", "name": "Physics I"})
+        client.post("/api/students", json={"student_id": "STU_PAIR"})
+
+        client.post("/api/enrolments", json={"student_id": "STU_PAIR", "exam_id": "C1"})
+        client.post("/api/enrolments", json={"student_id": "STU_PAIR", "exam_id": "P1"})
+
+        res = client.get("/api/graph/conflicts")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["vertex_count"] == 2
+        assert data["edge_count"] == 1
+        assert len(data["edges"]) == 1
+        assert data["edges"][0]["source"] == "C1"
+        assert data["edges"][0]["target"] == "P1"
+        assert data["edges"][0]["weight"] == 1
+        assert data["edges"][0]["shared_students"] == ["STU_PAIR"]
+
+    def test_conflict_graph_multiple_connected_components_and_isolated(self, client):
+        """Graph correctly models disjoint components and isolated vertices."""
+        # Component 1: {A1, A2}
+        client.post("/api/exams", json={"code": "A1", "name": "Course A1"})
+        client.post("/api/exams", json={"code": "A2", "name": "Course A2"})
+        client.post("/api/students", json={"student_id": "S_A"})
+        client.post("/api/enrolments", json={"student_id": "S_A", "exam_id": "A1"})
+        client.post("/api/enrolments", json={"student_id": "S_A", "exam_id": "A2"})
+
+        # Component 2: {B1, B2}
+        client.post("/api/exams", json={"code": "B1", "name": "Course B1"})
+        client.post("/api/exams", json={"code": "B2", "name": "Course B2"})
+        client.post("/api/students", json={"student_id": "S_B"})
+        client.post("/api/enrolments", json={"student_id": "S_B", "exam_id": "B1"})
+        client.post("/api/enrolments", json={"student_id": "S_B", "exam_id": "B2"})
+
+        # Isolated: {ISO_1}
+        client.post("/api/exams", json={"code": "ISO_1", "name": "Isolated Course"})
+
+        res = client.get("/api/graph/conflicts")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["vertex_count"] == 5
+        assert data["edge_count"] == 2
+        assert data["isolated_examinations"] == ["ISO_1"]
+        assert data["degrees"]["A1"] == 1
+        assert data["degrees"]["A2"] == 1
+        assert data["degrees"]["B1"] == 1
+        assert data["degrees"]["B2"] == 1
+        assert data["degrees"]["ISO_1"] == 0
+
+        # Verify edge endpoints are disjoint
+        edge_pairs = {(e["source"], e["target"]) for e in data["edges"]}
+        assert ("A1", "A2") in edge_pairs
+        assert ("B1", "B2") in edge_pairs
+
+    def test_conflict_graph_updates_dynamically_after_examination_deletion(self, client):
+        """Deleting an examination removes the vertex and all its incident conflict edges."""
+        e1_res = client.post("/api/exams", json={"code": "DEL1", "name": "Delete Me"})
+        client.post("/api/exams", json={"code": "KEEP1", "name": "Keep Me"})
+        client.post("/api/students", json={"student_id": "S_DEL"})
+        client.post("/api/enrolments", json={"student_id": "S_DEL", "exam_id": "DEL1"})
+        client.post("/api/enrolments", json={"student_id": "S_DEL", "exam_id": "KEEP1"})
+
+        # 1 edge exists initially
+        res1 = client.get("/api/graph/conflicts")
+        assert res1.json()["vertex_count"] == 2
+        assert res1.json()["edge_count"] == 1
+
+        # Delete DEL1
+        e1_id = e1_res.json()["id"]
+        client.delete(f"/api/exams/{e1_id}")
+
+        # DEL1 vertex and incident edge must be removed; KEEP1 becomes isolated
+        res2 = client.get("/api/graph/conflicts")
+        data2 = res2.json()
+        assert data2["vertex_count"] == 1
+        assert data2["edge_count"] == 0
+        assert data2["isolated_examinations"] == ["KEEP1"]
+        assert "DEL1" not in data2["degrees"]
+        assert data2["degrees"]["KEEP1"] == 0
+

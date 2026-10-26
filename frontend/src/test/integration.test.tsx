@@ -359,9 +359,9 @@ describe("Phase 5 Integration Tests", () => {
       expect(screen.getByText("Vertices |V|")).toBeInTheDocument();
       expect(screen.getByText("Edges |E|")).toBeInTheDocument();
 
-      // Course nodes in Vertices table
-      expect(screen.getByText("Computer Science")).toBeInTheDocument();
-      expect(screen.getByText("Biology I")).toBeInTheDocument();
+      // Course nodes in graph explorer
+      expect(screen.getAllByText("Computer Science")[0]).toBeInTheDocument();
+      expect(screen.getAllByText("Biology I")[0]).toBeInTheDocument();
 
       // Switch to Conflict Edges tab
       const edgesTab = screen.getByRole("button", { name: /Conflict Edges \(1\)/i });
