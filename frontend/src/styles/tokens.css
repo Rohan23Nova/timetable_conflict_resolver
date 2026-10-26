@@ -1,0 +1,77 @@
+/* SLOTWISE Design System Tokens */
+
+:root {
+  /* Light Theme Palette */
+  --color-bg-base: #F8F9FA;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-elevated: #F1F3F5;
+  --color-bg-subtle: #E9ECEF;
+
+  --color-border-subtle: #E2E6EA;
+  --color-border-strong: #CBD3DA;
+
+  --color-text-primary: #111318;
+  --color-text-secondary: #495057;
+  --color-text-muted: #6C757D;
+  --color-text-inverse: #F8F9FA;
+
+  /* Accents - Tuned for WCAG AA contrast in light mode */
+  --color-accent-amber: #D97706;
+  --color-accent-amber-hover: #B45309;
+  --color-accent-amber-muted: rgba(217, 119, 6, 0.12);
+
+  --color-accent-teal: #0D9488;
+  --color-accent-teal-hover: #0F766E;
+  --color-accent-teal-muted: rgba(13, 148, 136, 0.12);
+
+  --color-accent-danger: #DC2626;
+  --color-accent-danger-hover: #B91C1C;
+  --color-accent-danger-muted: rgba(220, 38, 38, 0.12);
+
+  --color-ring-focus: #D97706;
+
+  /* Shadows */
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+
+  /* Motion */
+  --motion-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dark {
+  /* Dark Theme Palette (Charcoal #111318, Elevated #1B1E25, Amber #F5A64A, Teal #69C9B1) */
+  --color-bg-base: #111318;
+  --color-bg-surface: #161920;
+  --color-bg-elevated: #1B1E25;
+  --color-bg-subtle: #242832;
+
+  --color-border-subtle: #262A36;
+  --color-border-strong: #383E4E;
+
+  --color-text-primary: #F0F2F5;
+  --color-text-secondary: #A0A6B5;
+  --color-text-muted: #687082;
+  --color-text-inverse: #111318;
+
+  /* Accents - Tuned for high contrast against dark surfaces */
+  --color-accent-amber: #F5A64A;
+  --color-accent-amber-hover: #E09235;
+  --color-accent-amber-muted: rgba(245, 166, 74, 0.15);
+
+  --color-accent-teal: #69C9B1;
+  --color-accent-teal-hover: #54B79F;
+  --color-accent-teal-muted: rgba(105, 201, 177, 0.15);
+
+  --color-accent-danger: #EF4444;
+  --color-accent-danger-hover: #DC2626;
+  --color-accent-danger-muted: rgba(239, 68, 68, 0.15);
+
+  --color-ring-focus: #F5A64A;
+
+  /* Shadows */
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 4px 12px -2px rgba(0, 0, 0, 0.5), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+}

@@ -30,6 +30,18 @@ venv/
 ENV/
 env/
 
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vite/
+frontend/.vite/
+
 # IDE / Editor settings / OS clutter
 .idea/
 .vscode/

@@ -42,6 +42,23 @@ timetable_conflict_resolver/
 │   │   └── test_validator.py     # Tests for independent validator
 │   ├── .env.example              # Environment variables template
 │   └── requirements.txt          # Python dependencies
+├── frontend/
+│   ├── public/
+│   │   └── favicon.svg           # Branded SVG favicon
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── layout/           # AppShell, Header, Sidebar
+│   │   │   └── ui/               # Button, Input, Card, Badge, Tooltip, Dialog, etc.
+│   │   ├── context/              # ThemeContext, ToastContext
+│   │   ├── lib/                  # Utility helpers (cn)
+│   │   ├── routes/               # OverviewPage, PlaceholderPage, router config
+│   │   ├── styles/               # tokens.css, index.css
+│   │   └── test/                 # Vitest test suites (theme, navigation, components)
+│   ├── index.html                # Anti-flash script and font preconnects
+│   ├── package.json              # React 18, Vite, Tailwind CSS, Phosphor Icons
+│   ├── tailwind.config.js        # Design tokens mapping
+│   ├── tsconfig.json             # Strict TypeScript configuration
+│   └── vite.config.ts            # Vite bundler configuration
 ├── .gitignore
 ├── pytest.ini                    # Pytest configuration
 ├── README.md                     # Documentation
@@ -236,3 +253,38 @@ pytest backend/tests/test_greedy.py -v
 pytest backend/tests/test_backtracking.py -v
 pytest backend/tests/test_validator.py -v
 ```
+
+---
+
+## 8. Phase 2: Frontend Design System & Application Shell
+
+Phase 2 establishes the frontend foundation in `frontend/`:
+- **Stack:** React 18, TypeScript (strict mode), Vite, Tailwind CSS v3, React Router v6, Phosphor Icons (`@phosphor-icons/react`), Vitest.
+- **Palette & Tokens:**
+  - Charcoal (`#111318`), Elevated surfaces (`#1B1E25`), Warm amber (`#F5A64A`), Muted teal (`#69C9B1`).
+  - Dark and light themes backed by CSS custom properties in `tokens.css`.
+  - LocalStorage theme persistence with inline anti-flash script in `index.html`.
+- **Component Library:** `Button`, `Input`, `SearchInput`, `Card`, `Badge`, `Tooltip`, `Breadcrumb`, `EmptyState`, `Skeleton`, `ErrorState`, `Dialog`, and `ToastProvider`.
+- **Application Shell:** Collapsible desktop sidebar, mobile responsive navigation drawer, top breadcrumbs, disabled search placeholder, and theme toggle.
+
+### Frontend Development & Testing Commands
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Run TypeScript typecheck
+npm run typecheck
+
+# Run frontend tests
+npm test
+
+# Build production bundle
+npm run build
+```
+
