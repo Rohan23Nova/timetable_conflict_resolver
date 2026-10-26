@@ -6,6 +6,9 @@ import { LandingPage } from "./LandingPage";
 import { LoginPage } from "./LoginPage";
 import { SignupPage } from "./SignupPage";
 import { OverviewPage } from "./OverviewPage";
+import { ExaminationsPage } from "./ExaminationsPage";
+import { StudentsPage } from "./StudentsPage";
+import { ConflictGraphPage } from "./ConflictGraphPage";
 import { PlaceholderPage } from "./PlaceholderPage";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -55,11 +58,11 @@ export const router = createBrowserRouter(
       element: <SignupPage />,
     },
 
-    /* Protected Studio Shell Routes */
+    /* Studio Shell Routes (requireAuth=false in Development Mode) */
     {
       path: "/app",
       element: (
-        <ProtectedRoute>
+        <ProtectedRoute requireAuth={false}>
           <AppShell />
         </ProtectedRoute>
       ),
@@ -74,47 +77,15 @@ export const router = createBrowserRouter(
         },
         {
           path: "examinations",
-          element: (
-            <PlaceholderPage
-              title="Examinations Catalog"
-              description="Manage university courses, papers, exam codes, credit values, and session duration requirements."
-              targetPhase="Phase 4"
-              dependencies={[
-                "Phase 1 Graph Model (Completed)",
-                "Phase 3 Authentication Experience (Completed)",
-                "Phase 4 Examination Repository & Persistence",
-              ]}
-            />
-          ),
+          element: <ExaminationsPage />,
         },
         {
           path: "students",
-          element: (
-            <PlaceholderPage
-              title="Students & Enrolments"
-              description="Manage student rosters and multi-course registrations that generate conflict edges."
-              targetPhase="Phase 4"
-              dependencies={[
-                "Phase 1 Conflict Builder (Completed)",
-                "Phase 3 Academic Admin Auth Experience (Completed)",
-                "Phase 4 CSV Batch Ingestion & Validation",
-              ]}
-            />
-          ),
+          element: <StudentsPage />,
         },
         {
           path: "conflict-graph",
-          element: (
-            <PlaceholderPage
-              title="Conflict Graph Visualizer"
-              description="Interactive graph inspection displaying vertices, adjacency lists, degrees, and shared enrolment cliques."
-              targetPhase="Phase 4"
-              dependencies={[
-                "Phase 1 Symmetric Undirected ConflictGraph (Completed)",
-                "Phase 4 Interactive Canvas / Force-Directed Graph UI",
-              ]}
-            />
-          ),
+          element: <ConflictGraphPage />,
         },
         {
           path: "generate",

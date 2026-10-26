@@ -389,5 +389,75 @@ cd frontend && npm test
 - **CORS Protection:** Requests are restricted to configured origins (`http://localhost:5173`, `http://127.0.0.1:5173`).
 - **No Plaintext Passwords / No Fake Auth:** The backend does not expose insecure mock authentication endpoints or accept unhashed dummy passwords.
 
+---
+
+## 11. Phase 5: Frontend–Backend Integration
+
+Phase 5 connects the React + TypeScript frontend with the persistent FastAPI backend, establishing real-time data flow across examinations, student enrolments, and dynamic conflict graphs:
+
+- **Centralized Typed API Client (`frontend/src/services/apiClient.ts`):**
+  - Configured via `VITE_API_BASE_URL` (with fallback to Vite development proxy `/api` pointing to `http://127.0.0.1:8000`).
+  - Strict TypeScript data contracts (`frontend/src/types/api.ts`) mirroring FastAPI schemas.
+  - Automatic error normalization handling HTTP 404, 409 (duplicate unique keys), 422 (validation errors), 500, and offline network errors.
+  - `AbortSignal` cancellation support preventing stale asynchronous overwrites on unmount.
+  - Safe configuration template provided in [`frontend/.env.example`](file:///Users/rohankumar/Desktop/timetable_conflict_resolver/frontend/.env.example).
+
+- **Live Backend Connection Indicator (`BackendStatusBadge.tsx`):**
+  - Integrated directly in the application shell header.
+  - Real-time connection states: *Checking API*, *Backend Connected* (with version & DB metadata tooltip), and *API Offline* (with manual retry trigger and operational troubleshooting guidance).
+
+- **Live Overview Dashboard (`OverviewPage.tsx`):**
+  - Renders genuine counts computed from persistent SQLite tables: Active Examinations, Registered Students, Total Course Enrolments, and Conflict Edges ($|E|$).
+  - Top Conflict Hubs table sorted by degree centrality ($d(v)$) highlighting the hardest-to-schedule examinations.
+  - Transactional sample dataset loader with optional database reset toggle.
+  - Honest zero-state handling with no fabricated metrics or fake recent events.
+
+- **Examination Management Catalog (`ExaminationsPage.tsx`):**
+  - Paginated course catalog with live keyword search.
+  - Interactive modal dialogs for registering new examinations and modifying course metadata.
+  - Confirmation modal for cascade deletion with live report of cleaned student enrolments.
+  - Client-side validation paired with backend 409 duplicate code error handling.
+
+- **Student & Enrolment Management (`StudentsPage.tsx`):**
+  - Student roster with search by institutional identifier or student name.
+  - Student creation and profile editing modals.
+  - Course Enrolment Manager: Inspect enrolled courses, add new courses, drop enrolments, and handle duplicate enrolment conflicts with clear toast notifications.
+
+- **Conflict Graph Data Summary (`ConflictGraphPage.tsx`):**
+  - Displays mathematical graph properties derived from `/api/graph/conflicts`: $|V|$, $|E|$, graph density, maximum degree $\Delta(G)$, and isolated courses.
+  - Dual-tab inspection:
+    1. *Vertices & Adjacency:* Course degree distribution and adjacent conflicting course codes.
+    2. *Conflict Edges:* Weighted conflict pairs with shared student identifiers.
+  - Clear milestone banner indicating interactive force-directed canvas arrives in Phase 6.
+
+### Running Frontend & Backend Concurrently
+
+```bash
+# Terminal 1: Start FastAPI backend
+.venv/bin/uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Terminal 2: Start Vite frontend dev server
+cd frontend && npm run dev
+```
+
+The frontend will be available at `http://localhost:5173/` (Landing) and `http://localhost:5173/app` (Studio Shell).
+
+### Verification & Testing Commands
+
+```bash
+# Backend pytest suite (91 passing tests)
+.venv/bin/pytest -v
+
+# Frontend TypeScript type check
+cd frontend && npm run typecheck
+
+# Frontend test suite (42 passing tests across 7 test files)
+cd frontend && npm test -- --run
+
+# Frontend production build
+cd frontend && npm run build
+```
+
+
 
 

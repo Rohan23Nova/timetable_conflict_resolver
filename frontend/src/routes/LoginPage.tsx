@@ -220,6 +220,15 @@ export const LoginPage: React.FC = () => {
                 Create one now
               </Link>
             </div>
+
+            {/* Development Evaluation Access */}
+            <div className="pt-1 text-center">
+              <Link to="/app">
+                <Button variant="outline" size="sm" className="w-full text-xs">
+                  Enter Studio in Development Mode
+                </Button>
+              </Link>
+            </div>
           </CardContent>
         </Card>
 

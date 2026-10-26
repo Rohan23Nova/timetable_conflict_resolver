@@ -10,8 +10,8 @@ import {
 } from "@phosphor-icons/react";
 import { useTheme } from "@/context/ThemeContext";
 import { Breadcrumb, BreadcrumbItem } from "@/components/ui/Breadcrumb";
-import { Badge } from "@/components/ui/Badge";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { BackendStatusBadge } from "./BackendStatusBadge";
 import { navItems } from "./Sidebar";
 
 export interface HeaderProps {
@@ -82,14 +82,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar }) => {
         </Tooltip>
       </div>
 
-      {/* Right section: Theme toggle + User menu placeholder */}
+      {/* Right section: Backend status, Theme toggle, and Development user profile */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Phase Status Pill */}
-        <div className="hidden sm:flex items-center">
-          <Badge variant="amber" size="sm" dot>
-            Phase 2 Shell
-          </Badge>
-        </div>
+        {/* Backend API Connection Indicator */}
+        <BackendStatusBadge />
 
         {/* Theme Toggle Button */}
         <Tooltip
@@ -110,13 +106,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar }) => {
           </button>
         </Tooltip>
 
-        {/* User Menu Placeholder (Clearly labelled as disconnected) */}
+        {/* User Menu Display (Development evaluation access) */}
         <Tooltip
-          content="Authentication and user profiles will be connected in Phase 3"
+          content="Development Mode: Data operations are local. Multi-user authentication is scheduled for later phases."
           position="bottom"
           className="text-[11px]"
         >
-          <div className="flex items-center gap-2 pl-2 border-l border-border-subtle cursor-not-allowed">
+          <div className="flex items-center gap-2 pl-2 border-l border-border-subtle cursor-default">
             <div className="w-8 h-8 rounded-full bg-subtle border border-border-strong flex items-center justify-center text-content-muted">
               <User size={16} />
             </div>
@@ -125,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar }) => {
                 Academic Admin
                 <ShieldCheck size={12} className="text-accent-teal" />
               </span>
-              <span className="text-[10px] text-content-muted">Guest (Phase 3 Auth)</span>
+              <span className="text-[10px] text-content-muted">Development Mode</span>
             </div>
           </div>
         </Tooltip>

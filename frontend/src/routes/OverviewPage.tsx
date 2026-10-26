@@ -1,50 +1,134 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
+  GraduationCap,
+  Student,
+  Link as LinkIcon,
   Graph,
-  TreeStructure,
-  ShieldCheck,
+  ArrowRight,
+  Database,
+  ArrowClockwise,
   CalendarCheck,
-  Sparkle,
-  SlidersHorizontal,
-  Info,
-  CheckCircle,
+  ClockCounterClockwise,
 } from "@phosphor-icons/react";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Input, SearchInput } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Dialog } from "@/components/ui/Dialog";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/context/ToastContext";
-import { useTheme } from "@/context/ThemeContext";
+import { apiClient } from "@/services/apiClient";
+
+interface DashboardMetrics {
+  totalExams: number;
+  totalStudents: number;
+  totalEnrolments: number;
+  vertexCount: number;
+  edgeCount: number;
+  isolatedExams: string[];
+  conflictHubs: { code: string; name: string; degree: number }[];
+}
 
 export const OverviewPage: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
   const { addToast } = useToast();
-  const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(false);
-  const [demoInput, setDemoInput] = useState("");
+
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSampleLoading, setIsSampleLoading] = useState<boolean>(false);
+  const [resetBeforeLoad, setResetBeforeLoad] = useState<boolean>(false);
+
+  const fetchDashboardData = useCallback(async (signal?: AbortSignal) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Parallel requests for live metrics
+      const [examsRes, studentsRes, enrolmentsRes, graphRes] = await Promise.all([
+        apiClient.exams.list({ limit: 100 }, signal),
+        apiClient.students.list({ limit: 1 }, signal),
+        apiClient.enrolments.list({ limit: 1 }, signal),
+        apiClient.graph.getConflicts(signal),
+      ]);
+
+      // Calculate highest degree conflict hubs from graph
+      const conflictHubs = graphRes.vertices
+        .map((v) => ({ code: v.code, name: v.name, degree: v.degree }))
+        .sort((a, b) => b.degree - a.degree)
+        .slice(0, 5);
+
+      setMetrics({
+        totalExams: examsRes.total,
+        totalStudents: studentsRes.total,
+        totalEnrolments: enrolmentsRes.total,
+        vertexCount: graphRes.vertex_count,
+        edgeCount: graphRes.edge_count,
+        isolatedExams: graphRes.isolated_examinations,
+        conflictHubs,
+      });
+    } catch (err: unknown) {
+      if ((err as Error)?.name === "AbortError") return;
+      const apiErr = err as { message?: string };
+      setError(
+        apiErr?.message ||
+          "Failed to load dashboard data. Ensure the backend FastAPI server is running."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchDashboardData(controller.signal);
+    return () => controller.abort();
+  }, [fetchDashboardData]);
+
+  const handleLoadSampleData = async () => {
+    setIsSampleLoading(true);
+    try {
+      const result = await apiClient.sampleData.load({ reset: resetBeforeLoad });
+      addToast({
+        title: result.status === "success" ? "Sample Data Loaded" : "Import Skipped",
+        message: result.message,
+        type: result.status === "success" ? "success" : "info",
+      });
+      // Refresh dashboard with newly imported records
+      await fetchDashboardData();
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string };
+      addToast({
+        title: "Import Failed",
+        message: apiErr?.message || "Could not load sample dataset.",
+        type: "error",
+      });
+    } finally {
+      setIsSampleLoading(false);
+    }
+  };
+
+  const isEmpty = (metrics?.totalExams || 0) === 0;
 
   return (
-    <div className="space-y-8">
-      {/* 1. Welcome Header Banner */}
+    <div className="space-y-8" data-testid="dashboard-content">
+      {/* 1. Welcome & Actions Bar */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border-subtle pb-6">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-xs font-mono font-semibold uppercase tracking-wider text-accent-amber">
-              University Operations
+              Academic Operations
             </span>
             <span className="text-content-muted">•</span>
             <Badge variant="teal" size="sm" dot>
-              Phase 2 Design System
+              Live Data Connected
             </Badge>
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-content-primary tracking-tight">
             Welcome to SLOTWISE
           </h2>
           <p className="text-sm text-content-secondary max-w-2xl mt-1.5 leading-relaxed">
-            SLOTWISE is a mathematical examination scheduling studio designed for university academic
-            operations. It uses exact graph coloring and Welsh-Powell heuristics to eliminate student
-            time slot clashes without manual timetable negotiation.
+            Examination Scheduling Studio — Real-time conflict matrix and course enrolment data derived from persistent database records.
           </p>
         </div>
 
@@ -52,258 +136,294 @@ export const OverviewPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={toggleTheme}
-            leftIcon={<Sparkle size={14} className="text-accent-amber" />}
+            onClick={() => fetchDashboardData()}
+            disabled={isLoading}
+            leftIcon={<ArrowClockwise size={14} className={isLoading ? "animate-spin" : ""} />}
           >
-            Theme: {theme === "dark" ? "Dark" : "Light"}
+            Refresh
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setIsDemoDialogOpen(true)}
-            leftIcon={<SlidersHorizontal size={14} />}
-          >
-            Interactive Controls
-          </Button>
+
+          <Link to="/app/examinations">
+            <Button variant="primary" size="sm" rightIcon={<ArrowRight size={14} />}>
+              Manage Examinations
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* 2. Algorithmic Pipeline Overview (Restrained Product Architectural Diagram) */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-content-muted">
-          Operational Architecture (Phase 1 Engine Connected)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Step 1 */}
-          <Card variant="subtle" className="relative p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-mono text-content-muted font-bold">01 / ENROLMENT</span>
-              <Badge variant="muted" size="sm">Input</Badge>
-            </div>
-            <h4 className="text-sm font-semibold text-content-primary mb-1">Student Rosters</h4>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Examination catalogs and multi-course student registrations parsed and deduplicated.
-            </p>
-          </Card>
-
-          {/* Step 2 */}
-          <Card variant="subtle" className="relative p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-mono text-accent-amber font-bold">02 / GRAPH</span>
-              <Graph size={16} className="text-accent-amber" />
-            </div>
-            <h4 className="text-sm font-semibold text-content-primary mb-1">Conflict Graph</h4>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Undirected graph G=(V,E) where edges represent shared students and non-assignable overlaps.
-            </p>
-          </Card>
-
-          {/* Step 3 */}
-          <Card variant="subtle" className="relative p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-mono text-accent-teal font-bold">03 / DAA SOLVERS</span>
-              <TreeStructure size={16} className="text-accent-teal" />
-            </div>
-            <h4 className="text-sm font-semibold text-content-primary mb-1">Coloring Engine</h4>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Welsh-Powell greedy heuristic + exact depth-first backtracking with search limits.
-            </p>
-          </Card>
-
-          {/* Step 4 */}
-          <Card variant="subtle" className="relative p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-mono text-content-primary font-bold">04 / AUDIT</span>
-              <ShieldCheck size={16} className="text-accent-teal" />
-            </div>
-            <h4 className="text-sm font-semibold text-content-primary mb-1">Integrity Validator</h4>
-            <p className="text-xs text-content-secondary leading-relaxed">
-              Independent audit validating completeness, edge non-conflict invariants, and slot bounds.
-            </p>
-          </Card>
+      {isLoading && !metrics ? (
+        <div className="space-y-6" data-testid="dashboard-loading">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} variant="rectangular" className="h-32" />
+            ))}
+          </div>
+          <Skeleton variant="rectangular" className="h-64" />
         </div>
-      </div>
-
-      {/* 3. Intentional Empty State: Explaining Data Will Connect in Phase 4 */}
-      <Card variant="default">
-        <CardHeader
-          title="Active Timetable Session"
-          description="Examination data and live conflict matrices will be populated in Phase 4."
-        />
-        <CardContent className="py-6">
-          <EmptyState
-            icon={<CalendarCheck size={26} className="text-accent-amber" />}
-            title="No Timetable Generated Yet"
-            description="The frontend application shell and design tokens are established. Real examination datasets, student rosters, and conflict matrices will be connected in Phase 4 after authentication (Phase 3) is finalized."
-            action={
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  addToast({
-                    title: "Roadmap Notice",
-                    message: "Database persistence and CSV ingestion will be integrated in Phase 4.",
-                    type: "info",
-                  })
-                }
-              >
-                View Integration Plan
-              </Button>
-            }
-            secondaryAction={
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  addToast({
-                    title: "Phase 1 Verified",
-                    message: "40/40 algorithm tests currently passing in backend.",
-                    type: "success",
-                  })
-                }
-              >
-                Check Phase 1 Engine
-              </Button>
-            }
+      ) : error && !metrics ? (
+        <div className="py-8" data-testid="dashboard-error">
+          <ErrorState
+            title="Backend Connection Required"
+            message={error}
+            onRetry={() => fetchDashboardData()}
           />
-        </CardContent>
-        <CardFooter>
-          <div className="flex items-center gap-2 text-xs text-content-muted">
-            <Info size={14} className="text-accent-amber flex-shrink-0" />
-            <span>Phase 2 strict boundary: no fake metrics or artificial charts are displayed.</span>
-          </div>
-          <Badge variant="outline" size="sm">
-            Phase 2 Scope Compliant
-          </Badge>
-        </CardFooter>
-      </Card>
-
-      {/* 4. Design System Component Verification Panel */}
-      <Card variant="default">
-        <CardHeader
-          title="Design System & Component Showcase"
-          description="Verify typography, button variants, input states, badges, and notification toasts."
-        />
-        <CardContent className="space-y-6">
-          {/* Button Variants */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-content-muted mb-3">
-              Button Hierarchy & States
-            </h4>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="primary"
-                onClick={() =>
-                  addToast({
-                    title: "Primary Action",
-                    message: "Amber accent button with high contrast text.",
-                    type: "success",
-                  })
-                }
-              >
-                Primary Button
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  addToast({
-                    title: "Secondary Action",
-                    message: "Elevated neutral button with subtle border.",
-                    type: "info",
-                  })
-                }
-              >
-                Secondary Button
-              </Button>
-              <Button variant="outline">Outline Button</Button>
-              <Button variant="ghost">Ghost Button</Button>
-              <Button
-                variant="destructive"
-                onClick={() =>
-                  addToast({
-                    title: "Destructive Action",
-                    message: "Critical warning button triggered.",
-                    type: "error",
-                  })
-                }
-              >
-                Destructive
-              </Button>
-              <Button variant="primary" isLoading>
-                Loading
-              </Button>
-              <Button variant="secondary" disabled>
-                Disabled
-              </Button>
-            </div>
-          </div>
-
-          {/* Badges */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-content-muted mb-3">
-              Status Badges & Tokens
-            </h4>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <Badge variant="amber" dot>
-                Conflict Detected
-              </Badge>
-              <Badge variant="teal" dot>
-                Validated Schedule
-              </Badge>
-              <Badge variant="danger" dot>
-                Infeasible (k &lt; χ)
-              </Badge>
-              <Badge variant="default">Default Neutral</Badge>
-              <Badge variant="muted">Muted Token</Badge>
-              <Badge variant="outline">Border Outline</Badge>
-            </div>
-          </div>
-
-          {/* Input & Search Fields */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-content-muted mb-3">
-              Form Controls
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
-              <Input
-                label="Course Identifier"
-                placeholder="e.g. CS101, MATH201"
-                value={demoInput}
-                onChange={(e) => setDemoInput(e.target.value)}
-                helperText="Unique uppercase academic course code"
-              />
-              <SearchInput
-                label="Quick Lookup"
-                placeholder="Filter schedule records..."
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Confirmation Dialog Component */}
-      <Dialog
-        isOpen={isDemoDialogOpen}
-        onClose={() => setIsDemoDialogOpen(false)}
-        title="Confirm Operational Action"
-        description="This modal demonstrates the accessible dialog component with focus trapping, backdrop blur, and escape key listeners."
-        confirmText="Confirm Action"
-        onConfirm={() => {
-          setIsDemoDialogOpen(false);
-          addToast({
-            title: "Action Confirmed",
-            message: "The confirmation dialog successfully handled your action.",
-            type: "success",
-          });
-        }}
-      >
-        <div className="p-3.5 rounded-md bg-subtle/70 border border-border-subtle flex items-start gap-2.5 text-xs text-content-secondary">
-          <CheckCircle size={18} className="text-accent-teal flex-shrink-0 mt-0.5" />
-          <p>
-            Keyboard accessibility test: Pressing <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border-strong font-mono">Escape</kbd> or clicking the background backdrop immediately closes this dialog.
-          </p>
         </div>
-      </Dialog>
+      ) : isEmpty ? (
+        <Card variant="default">
+          <CardContent className="py-12">
+            <EmptyState
+              icon={<CalendarCheck size={32} className="text-accent-amber" />}
+              title="No Examination Records in Database"
+              description="The database is initialized, but no examination courses or student rosters have been loaded. You can load our standard university engineering and science dataset with a single click, or manually register examinations."
+              action={
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={handleLoadSampleData}
+                  isLoading={isSampleLoading}
+                  leftIcon={<Database size={16} />}
+                >
+                  Load 10-Course Sample Dataset
+                </Button>
+              }
+              secondaryAction={
+                <Link to="/app/examinations">
+                  <Button variant="outline" size="md">
+                    Create Examination
+                  </Button>
+                </Link>
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* 3. Key Operational Metrics Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Exams */}
+            <Card variant="subtle" className="p-5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-content-muted mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Examinations</span>
+                <GraduationCap size={20} className="text-accent-amber" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-content-primary font-mono" data-testid="metric-total-exams">
+                  {metrics?.totalExams}
+                </span>
+                <span className="text-xs text-content-muted">courses</span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between text-xs">
+                <span className="text-content-secondary">Graph Vertices</span>
+                <span className="font-mono font-medium text-content-primary">{metrics?.vertexCount}</span>
+              </div>
+            </Card>
+
+            {/* Total Students */}
+            <Card variant="subtle" className="p-5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-content-muted mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Students</span>
+                <Student size={20} className="text-accent-teal" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-content-primary font-mono" data-testid="metric-total-students">
+                  {metrics?.totalStudents}
+                </span>
+                <span className="text-xs text-content-muted">enrolled</span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between text-xs">
+                <span className="text-content-secondary">Multi-Course Roster</span>
+                <Link to="/app/students" className="text-accent-amber hover:underline font-medium">
+                  View Roster
+                </Link>
+              </div>
+            </Card>
+
+            {/* Total Course Enrolments */}
+            <Card variant="subtle" className="p-5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-content-muted mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Course Enrolments</span>
+                <LinkIcon size={20} className="text-content-muted" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-content-primary font-mono" data-testid="metric-total-enrolments">
+                  {metrics?.totalEnrolments}
+                </span>
+                <span className="text-xs text-content-muted">registrations</span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between text-xs">
+                <span className="text-content-secondary">Avg per student</span>
+                <span className="font-mono font-medium text-content-primary">
+                  {metrics?.totalStudents
+                    ? ((metrics.totalEnrolments / metrics.totalStudents).toFixed(1))
+                    : 0}
+                </span>
+              </div>
+            </Card>
+
+            {/* Conflict Edges */}
+            <Card variant="subtle" className="p-5 flex flex-col justify-between">
+              <div className="flex items-center justify-between text-content-muted mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Conflict Edges (|E|)</span>
+                <Graph size={20} className="text-accent-danger" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-content-primary font-mono" data-testid="metric-total-conflicts">
+                  {metrics?.edgeCount}
+                </span>
+                <span className="text-xs text-content-muted">clashes</span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between text-xs">
+                <span className="text-content-secondary">Isolated Courses</span>
+                <span className="font-mono font-medium text-accent-teal">
+                  {metrics?.isolatedExams.length}
+                </span>
+              </div>
+            </Card>
+          </div>
+
+          {/* 4. Conflict Overview & Top Conflict Hubs */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Top Conflict Hubs Table (2 Columns) */}
+            <Card variant="default" className="lg:col-span-2">
+              <CardHeader
+                title="Conflict Hubs (Degree Centrality)"
+                description="Examinations with the highest number of student clashes. Graph coloring heuristics schedule these courses first."
+                action={
+                  <Link to="/app/conflict-graph">
+                    <Button variant="ghost" size="sm" rightIcon={<ArrowRight size={13} />}>
+                      Explore Graph
+                    </Button>
+                  </Link>
+                }
+              />
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border-subtle bg-subtle/50 text-content-muted font-mono uppercase tracking-wider">
+                        <th className="py-2.5 px-4 font-semibold">Course Code</th>
+                        <th className="py-2.5 px-4 font-semibold">Course Title</th>
+                        <th className="py-2.5 px-4 font-semibold text-right">Degree (d(v))</th>
+                        <th className="py-2.5 px-4 font-semibold text-right">Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {metrics?.conflictHubs.map((hub, idx) => (
+                        <tr key={hub.code} className="hover:bg-subtle/40 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-accent-amber">
+                            {hub.code}
+                          </td>
+                          <td className="py-3 px-4 text-content-primary font-medium">
+                            {hub.name}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-content-primary">
+                            {hub.degree}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <Badge
+                              variant={idx === 0 ? "danger" : hub.degree > 2 ? "amber" : "teal"}
+                              size="sm"
+                            >
+                              {hub.degree === 0 ? "Isolated" : `Rank #${idx + 1}`}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+              <CardFooter className="flex items-center justify-between text-xs text-content-muted">
+                <span>Derived dynamically from /api/graph/conflicts</span>
+                <span>Welsh-Powell Ordering: Descending Degree</span>
+              </CardFooter>
+            </Card>
+
+            {/* Sample Data & Management Actions (1 Column) */}
+            <Card variant="default">
+              <CardHeader
+                title="Dataset Controls"
+                description="Manage academic data persistence or reset to synthetic university benchmarks."
+              />
+              <CardContent className="space-y-4">
+                <div className="p-3.5 rounded-lg bg-subtle border border-border-subtle space-y-2">
+                  <div className="text-xs font-semibold text-content-primary flex items-center gap-1.5">
+                    <Database size={15} className="text-accent-teal" />
+                    <span>Synthetic Benchmark Roster</span>
+                  </div>
+                  <p className="text-[11px] text-content-secondary leading-relaxed">
+                    Loads 10 academic examinations across CS, Math, Physics, and Natural Sciences with 20 students forming realistic conflict clusters.
+                  </p>
+                  <label className="flex items-center gap-2 pt-2 text-xs text-content-secondary cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={resetBeforeLoad}
+                      onChange={(e) => setResetBeforeLoad(e.target.checked)}
+                      className="rounded border-border-strong text-accent-amber focus:ring-accent-amber"
+                    />
+                    <span>Reset existing records before import</span>
+                  </label>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={handleLoadSampleData}
+                    isLoading={isSampleLoading}
+                    leftIcon={<Database size={14} />}
+                  >
+                    Load / Sync Benchmark Data
+                  </Button>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-border-subtle">
+                  <div className="text-xs font-semibold text-content-secondary uppercase tracking-wider">
+                    Quick Navigation
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Link to="/app/examinations">
+                      <Button variant="ghost" size="sm" className="w-full justify-between" rightIcon={<ArrowRight size={12} />}>
+                        <span>Examinations Catalog</span>
+                        <span className="font-mono text-content-muted text-[11px]">{metrics?.totalExams} items</span>
+                      </Button>
+                    </Link>
+                    <Link to="/app/students">
+                      <Button variant="ghost" size="sm" className="w-full justify-between" rightIcon={<ArrowRight size={12} />}>
+                        <span>Students & Enrolments</span>
+                        <span className="font-mono text-content-muted text-[11px]">{metrics?.totalStudents} students</span>
+                      </Button>
+                    </Link>
+                    <Link to="/app/conflict-graph">
+                      <Button variant="ghost" size="sm" className="w-full justify-between" rightIcon={<ArrowRight size={12} />}>
+                        <span>Conflict Graph Summary</span>
+                        <span className="font-mono text-content-muted text-[11px]">{metrics?.edgeCount} edges</span>
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 5. Recent Activity / Execution History (Strictly honest empty state) */}
+          <Card variant="default">
+            <CardHeader
+              title="Recent Scheduling Runs"
+              description="Historical timetable coloring executions, slot counts, and chromatic proofs."
+            />
+            <CardContent className="py-6">
+              <div className="flex flex-col items-center justify-center text-center p-6 border border-dashed border-border-subtle rounded-lg space-y-2">
+                <ClockCounterClockwise size={26} className="text-content-muted" />
+                <h4 className="text-xs font-semibold text-content-primary">
+                  No Timetable Generation Executions Yet
+                </h4>
+                <p className="text-xs text-content-muted max-w-md">
+                  No automated scheduling jobs have been run against the current dataset. Algorithm execution, Welsh-Powell benchmarks, and backtracking solvers will be integrated into the studio in Phase 6.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 };
