@@ -27,6 +27,12 @@ import {
   StudentCreate,
   StudentListResponse,
   StudentUpdate,
+  ImportType,
+  ImportPreviewResponse,
+  ImportCommitRequest,
+  ImportCommitResponse,
+  SampleDatasetPreviewResponse,
+  SampleDatasetLoadResponse,
 } from "@/types/api";
 
 const BASE_URL: string =
@@ -383,6 +389,63 @@ class ApiClient {
 
     getExportCsvUrl: (scheduleId: string): string => {
       return `${this.baseUrl}/schedules/${encodeURIComponent(scheduleId)}/export/csv`;
+    },
+  };
+
+  // Phase 9 CSV Imports & Sample Dataset Studio API
+  public readonly imports = {
+    preview: async (
+      importType: ImportType,
+      file: File,
+      signal?: AbortSignal
+    ): Promise<ImportPreviewResponse> => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return this.request<ImportPreviewResponse>(`/imports/${importType}/preview`, {
+        method: "POST",
+        body: formData,
+        signal,
+      });
+    },
+
+    commit: async (
+      importType: ImportType,
+      payload: ImportCommitRequest,
+      signal?: AbortSignal
+    ): Promise<ImportCommitResponse> => {
+      return this.request<ImportCommitResponse>(`/imports/${importType}/commit`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal,
+      });
+    },
+
+    getTemplateUrl: (importType: string): string => {
+      return `${this.baseUrl}/imports/templates/${encodeURIComponent(importType)}`;
+    },
+
+    getReportUrl: (previewId: string): string => {
+      return `${this.baseUrl}/imports/reports/${encodeURIComponent(previewId)}`;
+    },
+
+    sampleDatasetPreview: async (
+      signal?: AbortSignal
+    ): Promise<SampleDatasetPreviewResponse> => {
+      return this.request<SampleDatasetPreviewResponse>("/imports/sample-dataset/preview", {
+        method: "GET",
+        signal,
+      });
+    },
+
+    sampleDatasetLoad: async (
+      mode: "append" | "replace" = "append",
+      signal?: AbortSignal
+    ): Promise<SampleDatasetLoadResponse> => {
+      return this.request<SampleDatasetLoadResponse>("/imports/sample-dataset/load", {
+        method: "POST",
+        body: JSON.stringify({ mode }),
+        signal,
+      });
     },
   };
 }

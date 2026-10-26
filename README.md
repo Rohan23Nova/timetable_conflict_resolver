@@ -599,15 +599,84 @@ SLOTWISE Phase 8 delivers a full-featured examination timetable management and p
 ### Verification Commands
 
 ```bash
-# Backend pytest suite (113 passing tests)
+# Backend pytest suite (118 passing tests)
 .venv/bin/pytest -v
 
 # Frontend TypeScript type check
 cd frontend && npm run typecheck
 
-# Frontend Vitest test suite (67 passing tests across 10 test files)
+# Frontend Vitest test suite (73 passing tests across 11 test files)
 cd frontend && npm test -- --run
 
 # Frontend production build
 cd frontend && npm run build
 ```
+
+---
+
+## 15. Phase 9: Data Import, Validation & Sample Dataset Studio
+
+Phase 9 establishes a robust data ingestion pipeline and pedagogical benchmarking studio for SLOTWISE, enabling university administrators to upload complex student course rosters, validate relational constraints prior to database writes, and experiment with realistic academic datasets:
+
+### Multi-Type CSV Ingestion Pipeline
+
+- **Three Dedicated Dataset Types:**
+  1. **Examinations (`exams`):**
+     - Required columns: `exam_code`, `subject_name`.
+     - Optional columns: `department`, `semester`, `duration` (enforced integer $> 0$).
+  2. **Students (`students`):**
+     - Required columns: `student_id`.
+     - Optional columns: `student_name` / `display_name`.
+  3. **Course Enrolments (`enrolments`):**
+     - Required columns: `student_id`, `exam_code`.
+     - Referential integrity: Enforces that both student and examination exist in the database prior to enrolment.
+- **Strict Pre-Flight Validation Engine:**
+  - Operational guards: Max file size 5MB, max batch size 5,000 rows.
+  - Multi-encoding support: Automatic fallback across `utf-8-sig` (with BOM), `utf-8`, and `latin-1`.
+  - Header validation: Detects missing mandatory headers and surface clear schema guidance before processing rows.
+  - Row-level diagnostics: Validates mandatory values, non-negative durations, duplicate keys in the uploaded file, and existing records in the database.
+  - Downloadable Validation Audit Report (`GET /api/imports/reports/{preview_id}`): Exports an RFC 4180 CSV containing `CSV Line Number,Validation Status,Errors,Warnings,Input Record Snapshot`.
+  - RFC 4180 CSV Templates (`GET /api/imports/templates/{import_type}`): Pre-formatted downloadable templates with sample rows for all three dataset types.
+
+### Transactional Commit Strategies
+
+- **Two Distinct Import Strategies:**
+  1. **Atomic All-or-Nothing (Strict):** Commits the entire file only if 100% of parsed rows pass validation. If even one fatal error exists, the database transaction rolls back completely.
+  2. **Valid-Only (Permissive):** Commits all valid records while safely skipping invalid or duplicate rows.
+- **Topological Conflict Graph Impact:**
+  - Database commits trigger immediate recomputation of the conflict graph ($|V|$ and $|E|$) and regenerate the SHA-256 graph fingerprint.
+  - Automatically identifies whether previously generated timetable schedules are now stale or invalidated due to new courses or conflicting enrolments.
+
+### Realistic Academic Sample Dataset Studio
+
+- **Standard University Science & Engineering Benchmark (v2.0):**
+  - **15 Examinations:** Spanning Computer Science (`CS101`, `CS201`, `CS301`, `CS401`), Mathematics (`MATH101`, `MATH201`, `MATH301`), Physics (`PHYS101`, `PHYS201`), Chemistry (`CHEM101`), Biology (`BIO101`, `BIO201`), Economics (`ECON101`, `ECON201`), and Humanities (`ENG101`).
+  - **36 Students & 85 Course Enrolments:** Distributed across 5 realistic interdisciplinary cohorts.
+  - **High-Conflict Hubs:** `CS101`, `MATH101`, and `PHYS101` model core prerequisite bottlenecks with high vertex degrees.
+  - **Isolated Disjoint Component:** `ENG101` has degree $d(\text{ENG101}) = 0$ (single-course student enrolment), testing algorithmic handling of disconnected graphs.
+- **Two Loading Modes:**
+  1. **Append Mode (Safe):** Idempotently adds missing sample courses, students, and enrolments without altering or deleting existing user data.
+  2. **Replace Mode (Clean Slate):** Clears course, student, and enrolment records and loads the complete benchmark. (Protected by a frontend confirmation modal; saved timetable schedules are never destroyed).
+- **Preview Endpoint (`GET /api/imports/sample-dataset/preview`):** Computes structural metrics, projected edge counts, and isolated courses statically without touching the database.
+
+### Frontend Studio Interface (`DataImportPage.tsx`)
+
+- Accessible via `/data-import`, `/app/import-export`, and `/app/data-import`.
+- **Three-Tab Studio Layout:**
+  1. **CSV Batch Importer:** Stepper workflow guiding users from dataset type selection to file dropzone, live validation preview table with status filtering (All, Valid, Errors, Warnings), strategy selection, and post-commit conflict impact banner.
+  2. **Sample Dataset Studio:** Overview hero card, live metric pills, conflict hub diagnostic cards, append vs. replace mode selectors, and confirmation dialogs.
+  3. **Template & Schema Specifications:** Visual schema cards detailing column constraints and one-click download buttons for all templates.
+
+### Verification & Test Suite Summary
+
+```bash
+# Complete backend test suite (118 passing tests)
+.venv/bin/pytest -v
+
+# Complete frontend test suite (73 passing tests across 11 test files)
+cd frontend && npm test -- --run
+
+# Production build verification
+cd frontend && npm run build
+```
+

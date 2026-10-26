@@ -12,6 +12,7 @@ import { ConflictGraphPage } from "./ConflictGraphPage";
 import { AlgorithmLabPage } from "./AlgorithmLabPage";
 import { TimetableCalendarPage } from "./TimetableCalendarPage";
 import { TimetableHistoryPage } from "./TimetableHistoryPage";
+import { DataImportPage } from "./DataImportPage";
 import { PlaceholderPage } from "./PlaceholderPage";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -144,17 +145,11 @@ export const router = createBrowserRouter(
         },
         {
           path: "import-export",
-          element: (
-            <PlaceholderPage
-              title="Data Import / Export"
-              description="Upload university CSV/JSON course rosters and export verified examination schedules."
-              targetPhase="Phase 4"
-              dependencies={[
-                "Phase 1 Input Builder Adapter (Completed)",
-                "Phase 4 File Parsers (CSV, Excel, JSON)",
-              ]}
-            />
-          ),
+          element: <DataImportPage />,
+        },
+        {
+          path: "data-import",
+          element: <DataImportPage />,
         },
         {
           path: "settings",
@@ -186,6 +181,7 @@ export const router = createBrowserRouter(
     { path: "/algorithm-lab", element: <Navigate to="/app/algorithms" replace /> },
     { path: "/comparison", element: <Navigate to="/app/comparison" replace /> },
     { path: "/import-export", element: <Navigate to="/app/import-export" replace /> },
+    { path: "/data-import", element: <Navigate to="/app/import-export" replace /> },
     { path: "/settings", element: <Navigate to="/app/settings" replace /> },
 
     /* Catch-all 404 */

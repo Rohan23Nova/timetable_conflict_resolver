@@ -32,7 +32,7 @@ export const navItems: NavItem[] = [
   { label: "Algorithm Laboratory", href: "/app/algorithms", icon: <TreeStructure size={18} /> },
   { label: "Timetable Calendar", href: "/app/calendar", icon: <CalendarCheck size={18} /> },
   { label: "Schedule History", href: "/app/timetable/history", icon: <CalendarDots size={18} /> },
-  { label: "Data Import/Export", href: "/app/import-export", icon: <Database size={18} />, phase: "Phase 9" },
+  { label: "Data Import/Export", href: "/app/import-export", icon: <Database size={18} /> },
   { label: "Settings", href: "/app/settings", icon: <GearSix size={18} /> },
 ];
 

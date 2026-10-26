@@ -274,3 +274,76 @@ export interface ScheduleDetailResponse {
   updated_at: string;
 }
 
+// Phase 9 Data Import & Sample Dataset Types
+export type ImportType = 'exams' | 'students' | 'enrolments';
+export type ImportStrategy = 'atomic' | 'valid_only';
+export type RowValidationStatus = 'valid' | 'error' | 'warning';
+
+export interface ImportRowValidation {
+  row_number: number;
+  data: Record<string, unknown>;
+  status: RowValidationStatus;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface ImportPreviewResponse {
+  preview_id: string;
+  import_type: ImportType;
+  filename: string;
+  total_rows: number;
+  valid_rows: number;
+  invalid_rows: number;
+  warning_rows: number;
+  can_commit_atomic: boolean;
+  can_commit_valid_only: boolean;
+  column_headers: string[];
+  missing_required_headers: string[];
+  rows: ImportRowValidation[];
+  summary: string;
+}
+
+export interface ImportCommitRequest {
+  preview_id: string;
+  import_type: ImportType;
+  strategy: ImportStrategy;
+}
+
+export interface ImportCommitResponse {
+  import_type: ImportType;
+  strategy: ImportStrategy;
+  total_processed: number;
+  inserted_count: number;
+  skipped_count: number;
+  rejected_count: number;
+  message: string;
+  resulting_graph_vertices: number;
+  resulting_graph_edges: number;
+  graph_fingerprint: string;
+  is_schedule_stale: boolean;
+}
+
+export interface SampleDatasetPreviewResponse {
+  name: string;
+  description: string;
+  exam_count: number;
+  student_count: number;
+  enrolment_count: number;
+  projected_conflicts: number;
+  projected_isolated_exams: string[];
+  sample_exams: Record<string, unknown>[];
+  sample_students: Record<string, unknown>[];
+}
+
+export interface SampleDatasetLoadResponse {
+  status: string;
+  mode: string;
+  message: string;
+  exams_created: number;
+  students_created: number;
+  enrolments_created: number;
+  graph_vertices: number;
+  graph_edges: number;
+  graph_fingerprint: string;
+}
+
