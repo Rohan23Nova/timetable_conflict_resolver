@@ -312,4 +312,82 @@ Phase 3 introduces the public landing page and authentication experience:
     - `ProtectedRoute` component guarding `/app/*` routes with automatic redirects to login.
     - **No Dummy Logins / No Plaintext Passwords:** When backend persistence is offline (prior to Phase 4 API endpoints), forms cleanly notify users that authentication services require the backend API without accepting fake credentials or exposing passwords.
 
+---
+
+## 10. Phase 4: Backend API, Database, and Data Management
+
+Phase 4 establishes the persistent backend layer, relational database models, dynamic conflict graph API, and transactional sample data loading:
+
+- **Stack:** Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite (with `PRAGMA foreign_keys = ON`), Alembic migrations, Pydantic v2, Uvicorn, and Pytest.
+- **Architectural Organization:**
+  - `backend/app/config.py`: Centralized environment configuration and CORS origins.
+  - `backend/app/database.py`: SQLAlchemy engine, SQLite foreign-key enforcement, session provider (`get_db`), and schema initializers.
+  - `backend/app/models/`: Declarative ORM models (`ExamModel`, `StudentModel`, `EnrolmentModel`, `DatasetMetadataModel`) with indexes, unique constraints, and cascading deletions.
+  - `backend/app/schemas/`: Typed request/response validation schemas with field-level sanitization.
+  - `backend/app/repositories/`: Data access layer isolating SQL queries and pagination.
+  - `backend/app/services/`: Business logic, referential validations, dynamic conflict graph computation via the Phase 1 builder, and transactional sample dataset loading.
+  - `backend/app/routers/`: FastAPI endpoints organized by domain.
+  - `backend/app/main.py`: ASGI application factory with startup lifespan and CORS middleware.
+  - `backend/alembic/`: Repeatable, version-controlled database migrations.
+
+### API Endpoints Reference
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/health` | Health check verifying API status and database connectivity |
+| `GET` | `/api/exams` | List paginated examinations with optional search filter |
+| `POST` | `/api/exams` | Create examination (validates unique course code) |
+| `GET` | `/api/exams/{id}` | Retrieve examination by UUID or course code |
+| `PATCH` | `/api/exams/{id}` | Partially update examination fields with uniqueness checks |
+| `DELETE` | `/api/exams/{id}` | Delete examination and cascade-clean enrolments |
+| `GET` | `/api/students` | List paginated students with optional search filter |
+| `POST` | `/api/students` | Register student (validates unique student identifier) |
+| `GET` | `/api/students/{id}` | Retrieve student by UUID or institutional student_id |
+| `PATCH` | `/api/students/{id}` | Partially update student fields with uniqueness checks |
+| `DELETE` | `/api/students/{id}` | Delete student and cascade-clean enrolments |
+| `GET` | `/api/enrolments` | List student course enrolments (filterable by exam or student) |
+| `POST` | `/api/enrolments` | Enroll student in examination (validates references, prevents duplicates) |
+| `DELETE` | `/api/enrolments/{id}` | Remove an enrolment record |
+| `GET` | `/api/graph/conflicts` | Dynamically reconstructs conflict graph from database enrolments |
+| `POST` | `/api/sample-data` | Transactionally load 10 exams & 20 students (`reset=False` protects data) |
+| `POST` | `/api/sample-data/load` | Alias for loading sample academic dataset |
+
+### Dynamic Conflict Graph Construction
+
+`GET /api/graph/conflicts` queries active persistent database records and constructs the graph using the Phase 1 `build_conflict_graph` engine. It returns:
+- Vertices with metadata and computed vertex degrees.
+- Unique undirected conflict edges with weight (number of shared students) and shared student rosters.
+- Adjacency mapping and list of isolated examinations (degree 0).
+- Deterministic output without self-loops or stale caching.
+
+### Server Startup & Migration Commands
+
+```bash
+# Apply database migrations
+.venv/bin/alembic upgrade head
+
+# Start FastAPI development server
+.venv/bin/uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+- **Interactive API Documentation (Swagger UI):** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **Alternative ReDoc UI:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+### Automated Test Execution
+
+```bash
+# Run all backend tests (Phase 1 algorithm tests + Phase 4 persistent API tests)
+.venv/bin/pytest -v
+
+# Run frontend tests
+cd frontend && npm test
+```
+
+### Access Model & Security Assumptions
+
+- **Development Access Model:** The Phase 4 data management API operates in local development mode without pretending that a full multi-user authentication boundary is enforced.
+- **CORS Protection:** Requests are restricted to configured origins (`http://localhost:5173`, `http://127.0.0.1:5173`).
+- **No Plaintext Passwords / No Fake Auth:** The backend does not expose insecure mock authentication endpoints or accept unhashed dummy passwords.
+
+
 

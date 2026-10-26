@@ -1,0 +1,13 @@
+"""SQLAlchemy models package for SLOTWISE."""
+
+from backend.app.models.dataset import DatasetMetadataModel
+from backend.app.models.enrolment import EnrolmentModel
+from backend.app.models.examination import ExamModel
+from backend.app.models.student import StudentModel
+
+__all__ = [
+    "ExamModel",
+    "StudentModel",
+    "EnrolmentModel",
+    "DatasetMetadataModel",
+]
