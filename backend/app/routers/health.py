@@ -1,7 +1,7 @@
 """Health check and connection verification router."""
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -35,3 +35,19 @@ def check_health(db: Session = Depends(get_db)) -> HealthResponse:
         environment=settings.environment,
         timestamp=datetime.now(timezone.utc),
     )
+
+
+@router.get(
+    "/ready",
+    response_model=HealthResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Readiness check for container orchestrators",
+    description="Validates active database connection. Returns 503 if degraded.",
+)
+def check_readiness(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
+    """Verify backend readiness to accept production traffic."""
+    health = check_health(db=db)
+    if health.database != "connected":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return health
+

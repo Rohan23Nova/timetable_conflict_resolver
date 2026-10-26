@@ -1,682 +1,757 @@
-# SLOTWISE — University Exam Timetable Conflict Resolver (Exam Scheduling Studio)
+# SLOTWISE: Exam Scheduling Studio
 
-**SLOTWISE** is a University Examination Timetable Conflict Resolver built on graph-theoretic models and Design and Analysis of Algorithms (DAA) principles. 
+[![Backend Test Suite](https://img.shields.io/badge/pytest-119%20passed-brightgreen.svg)](#17-testing--verification)
+[![Frontend Test Suite](https://img.shields.io/badge/vitest-73%20passed-brightgreen.svg)](#17-testing--verification)
+[![TypeScript](https://img.shields.io/badge/typescript-strict%205.x-blue.svg)](#9-technology-stack)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](#9-technology-stack)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](#9-technology-stack)
+[![React](https://img.shields.io/badge/React-18-61dafb.svg)](#9-technology-stack)
+[![Docker](https://img.shields.io/badge/docker-ready-2496ed.svg)](#11-installation--execution-guide)
 
-Phase 1 establishes the core algorithmic engine and verification foundation:
-- Undirected conflict graph data structures with set-based symmetric adjacency.
-- Graph construction engine with student enrolment parsing and deduplication.
-- Heuristic Greedy Graph Coloring (Welsh-Powell descending degree and natural orderings).
-- Exact Backtracking $K$-Coloring algorithm with search-node budgeting and deadline controls.
-- Independent schedule validator enforcing non-conflict and completeness invariants.
+> **"Every exam has its place. Every conflict has a solution."**
+
+**SLOTWISE** is a university examination timetable conflict resolver built upon graph-theoretic models and Design and Analysis of Algorithms (DAA) principles. It models examinations as vertices in an undirected conflict graph, student co-enrolments as conflict edges, and generates provably conflict-free examination schedules using both polynomial-time heuristics (Welsh-Powell Greedy Graph Coloring) and exponential exact state-space search (Backtracking with forward checking and pruning).
+
+Every generated timetable is independently verified by a standalone validation engine and persisted with deterministic SHA-256 graph fingerprinting for automated stale-schedule invalidation.
 
 ---
 
-## 1. Directory Structure
+## Table of Contents
+
+1. [Product Overview & Objective](#1-product-overview--objective)
+2. [Problem Statement & Mathematical Formulation](#2-problem-statement--mathematical-formulation)
+3. [DAA Concepts & Algorithmic Principles](#3-daa-concepts--algorithmic-principles)
+4. [Conflict Graph Representation](#4-conflict-graph-representation)
+5. [Greedy Graph Coloring (Welsh-Powell Heuristic)](#5-greedy-graph-coloring-welsh-powell-heuristic)
+6. [Exact Backtracking Search & Pruning](#6-exact-backtracking-search--pruning)
+7. [Complexity Analysis Matrix](#7-complexity-analysis-matrix)
+8. [System Architecture & Component Flow](#8-system-architecture--component-flow)
+9. [Technology Stack](#9-technology-stack)
+10. [Annotated Project Structure](#10-annotated-project-structure)
+11. [Installation & Execution Guide](#11-installation--execution-guide)
+12. [API Endpoint Reference](#12-api-endpoint-reference)
+13. [Database Design & Relational Schema](#13-database-design--relational-schema)
+14. [CSV Import Formats & Validation Rules](#14-csv-import-formats--validation-rules)
+15. [How to Generate a Conflict-Free Timetable](#15-how-to-generate-a-conflict-free-timetable)
+16. [How to Save, Manage, and Export Timetables](#16-how-to-save-manage-and-export-timetables)
+17. [Testing & Verification](#17-testing--verification)
+18. [Known Limitations & Design Trade-Offs](#18-known-limitations--design-trade-offs)
+19. [Demonstration Guide & Benchmark Walkthrough](#19-demonstration-guide--benchmark-walkthrough)
+
+---
+
+## 1. Product Overview & Objective
+
+University academic registries face a recurring logistical bottleneck: scheduling dozens or hundreds of course examinations across a compact exam period without subjecting any student to simultaneous examinations.
+
+Manual scheduling is error-prone, labor-intensive, and computationally fragile. **SLOTWISE: Exam Scheduling Studio** addresses this challenge through algorithmic automation:
+- **Relational Data Management:** Manages examinations, students, and course enrolments with strict referential integrity.
+- **Dynamic Conflict Graph Modeling:** Automatically computes symmetric pairwise conflict edges and weights based on real-time student registrations.
+- **Dual Algorithmic Engine:**
+  - *Greedy Coloring (Welsh-Powell):* $O(|V|^2 + |E|)$ heuristic guaranteeing $\chi(G) \le \Delta(G) + 1$ slots.
+  - *Exact Backtracking Search:* $O(k^{|V|})$ state-space search with degree ordering and dead-end pruning to compute the exact chromatic number $\chi(G)$ or mathematically prove infeasibility for $k$ slots.
+- **Independent Validation Certificate:** Guarantees schedule correctness via an independent invariant validator verifying completeness, range bounds, and 0 adjacent clashes.
+- **Stale Schedule Invalidation:** Detects any modification to underlying student enrolments via cryptographic SHA-256 graph fingerprinting.
+- **Interactive UI & Visual Studio:** Featuring interactive React Flow conflict graph exploration, algorithm comparison benchmarks, calendar date mapping, RFC 4180 CSV export, and print-ready stylesheets.
+
+---
+
+## 2. Problem Statement & Mathematical Formulation
+
+### The Examination Timetabling Problem (ETP)
+Given:
+1. A set of examinations $E = \{e_1, e_2, \dots, e_n\}$.
+2. A set of students $S = \{s_1, s_2, \dots, s_m\}$.
+3. An enrolment relation $R \subseteq S \times E$, where $(s, e) \in R$ denotes that student $s$ is registered for examination $e$.
+
+Find an assignment of examinations to time slots (colors) $\sigma: E \to \{1, 2, \dots, k\}$ such that:
+$$\forall e_i, e_j \in E, \quad (\exists s \in S \text{ s.t. } (s, e_i) \in R \land (s, e_j) \in R) \implies \sigma(e_i) \ne \sigma(e_j)$$
+
+### Reduction to Graph Vertex Coloring
+We construct an undirected conflict graph $G = (V, E_G)$:
+- Each examination $e \in E$ corresponds to a unique vertex $v \in V$, so $|V| = n$.
+- An undirected edge $(u, v) \in E_G$ exists if and only if:
+  $$\{s \in S \mid (s, u) \in R\} \cap \{s \in S \mid (s, v) \in R\} \ne \emptyset$$
+- The edge weight $w(u, v)$ represents the co-enrolment count:
+  $$w(u, v) = |\{s \in S \mid (s, u) \in R \land (s, v) \in R\}|$$
+
+A conflict-free timetable using $k$ time slots is equivalent to a **proper vertex $k$-coloring** of $G$. The minimum number of time slots required is the **chromatic number** $\chi(G)$. Because determining whether $\chi(G) \le k$ is NP-complete for $k \ge 3$ (Karp, 1972), universities require both rapid heuristic approximation algorithms and exact bounded search algorithms.
+
+---
+
+## 3. DAA Concepts & Algorithmic Principles
+
+SLOTWISE implements fundamental concepts from Design and Analysis of Algorithms:
+
+| DAA Principle | Implementation in SLOTWISE |
+|---|---|
+| **Graph Modeling & Dual Graph Reduction** | Bipartite student-exam relations $S \times E$ are projected into an undirected conflict graph $G = (V, E)$. |
+| **Greedy Heuristics & Vertex Orderings** | Implements the Welsh-Powell heuristic: sorting vertices in descending order of degree $d(v)$ before sequential coloring. |
+| **Upper Bounding (Brooks' Theorem)** | For any connected graph that is neither complete nor an odd cycle, $\chi(G) \le \Delta(G)$. Welsh-Powell ensures $\chi(G) \le \Delta(G) + 1$. |
+| **Lower Bounding (Clique Number $\omega(G)$)** | The chromatic number satisfies $\chi(G) \ge \omega(G)$, where $\omega(G)$ is the size of the largest complete subgraph (clique) of mutual conflicts. |
+| **State-Space Tree Search & Backtracking** | Systematically traverses the decision tree of slot assignments $\sigma(v_1), \dots, \sigma(v_n)$ depth-first. |
+| **Forward Checking & Dead-End Pruning** | Prunes search branches as soon as a slot assignment clashes with an already-colored adjacent neighbor. |
+| **MRV / Degree Ordering in Search** | Colors highest-degree and most-constrained vertices first to induce early dead-end cutoffs at shallow tree depths. |
+| **Independent Verification & Certification** | Employs an independent $O(\|V\| + \|E\|)$ validator that verifies zero adjacent conflicts, total completeness, and valid color domains without trusting algorithm internals. |
+
+---
+
+## 4. Conflict Graph Representation
+
+```
+   [ CS101 ] ────────────── (Weight: 2) ────────────── [ MATH101 ]
+        \                                                 /
+         \                                               /
+      (Weight: 1)                                   (Weight: 3)
+           \                                           /
+            \                                         /
+             ─────────────── [ PHYS101 ] ────────────
+                                 
+                 [ ENG101 ]  <-- Isolated Vertex (d=0)
+```
+
+The conflict graph $G = (V, E)$ maintains:
+- **Vertices ($V$):** Every registered course is represented. Isolated courses ($d(v) = 0$, e.g. single-enrolment humanities courses) remain explicit vertices.
+- **Edges ($E$):** Symmetric, undirected conflict edges with co-enrolled student identifiers stored in the edge metadata.
+- **Adjacency Representation:** Implemented via `dict[str, set[str]]` providing $O(1)$ edge-existence queries and duplicate-free edge insertion.
+- **Conflict Degree $d(v)$:** The number of courses that conflict with examination $v$.
+- **Maximum Degree $\Delta(G)$:** $\max_{v \in V} d(v)$.
+- **Graph Density:** $D = \frac{2|E|}{|V|(|V| - 1)}$ for $|V| > 1$, reflecting academic schedule congestion.
+- **Disconnected Components:** Disconnected components and isolated vertices are processed naturally without inflating time slots.
+
+---
+
+## 5. Greedy Graph Coloring (Welsh-Powell Heuristic)
+
+### Algorithm Steps
+1. Compute the conflict degree $d(v)$ for every vertex $v \in V$.
+2. Sort vertices in descending order of degree: $d(v_1) \ge d(v_2) \ge \dots \ge d(v_n)$. (Ties are broken deterministically by alphanumeric code).
+3. Initialize all vertices as uncolored.
+4. For each vertex $v_i$ in the sorted sequence:
+   - Identify the set of colors already assigned to its neighbors: $C_{\text{nbr}} = \{\sigma(u) \mid u \in \text{Adj}(v_i) \land \sigma(u) \ne \text{None}\}$.
+   - Assign to $v_i$ the smallest positive integer color $c \in \{1, 2, 3, \dots\}$ such that $c \notin C_{\text{nbr}}$.
+5. If a maximum color limit $k$ was specified and $c > k$, record status `INCOMPLETE` with partial assignments. Otherwise, return status `SUCCESS`.
+
+### Why Vertex Ordering Matters
+Greedy coloring with an arbitrary vertex ordering can require significantly more colors than $\chi(G)$.
+
+**Counterexample (Crown Graph $K_{3,3}$ minus a matching):**
+Consider a bipartite graph $G = (A \cup B, E)$ where $A = \{a_1, a_2, a_3\}$ and $B = \{b_1, b_2, b_3\}$, with edges $(a_i, b_j)$ for all $i \ne j$.
+- The chromatic number is $\chi(G) = 2$ (since it is bipartite).
+- If colored in adversarial order $a_1, b_1, a_2, b_2, a_3, b_3$:
+  - $a_1$ gets Color 1.
+  - $b_1$ is not connected to $a_1$, so $b_1$ gets Color 1.
+  - $a_2$ is connected to $b_1$, so $a_2$ gets Color 2.
+  - $b_2$ is connected to $a_1$, so $b_2$ gets Color 2.
+  - $a_3$ is connected to $b_1, b_2$, so $a_3$ gets Color 3.
+  - $b_3$ is connected to $a_1, a_2$, so $b_3$ gets Color 3.
+  - The naive greedy algorithm uses **3 colors**, whereas Welsh-Powell ordering ($d(v) = 2$ for all, preserving bipartite balance) uses **2 colors**.
+
+### Theoretical Upper Bound
+$$\chi(G) \le \Delta(G) + 1$$
+Welsh-Powell guarantees that no vertex ever receives a color exceeding $\Delta(G) + 1$, because when coloring any vertex $v$, it has at most $d(v) \le \Delta(G)$ colored neighbors, leaving at least one color in $\{1, 2, \dots, \Delta(G) + 1\}$ unassigned.
+
+---
+
+## 6. Exact Backtracking Search & Pruning
+
+### Algorithm Steps
+1. Sort vertices using Welsh-Powell descending degree order to ensure highest-degree variables are assigned first (fail-first principle).
+2. Recursively explore assignments:
+   $$\text{Solve}(index, assignment)$$
+   - **Base Case:** If $index == |V|$, a proper $k$-coloring has been found. Return `SUCCESS`.
+   - **Recursive Step:** For vertex $u = V[index]$, iterate candidate colors $c \in \{1, 2, \dots, k\}$:
+     - Check safety: Verify that no neighbor $v \in \text{Adj}(u)$ already has color $c$.
+     - If safe:
+       - Assign $\sigma(u) = c$.
+       - Recurse: $\text{Solve}(index + 1, assignment)$.
+       - If recursion returns `SUCCESS`, terminate and bubble up.
+       - If recursion fails, backtrack: unassign $\sigma(u) = \text{None}$.
+3. If all candidate colors $1 \dots k$ for vertex $u$ lead to dead ends, backtrack to the previous decision.
+
+### Mathematical Infeasibility vs. Resource Limits
+- **Exhaustive Infeasibility (`INFEASIBLE`):** If the recursive search systematically exhausts the entire state-space tree without finding a valid assignment within time/node budgets, it mathematically proves that:
+  $$\chi(G) > k$$
+  *No valid timetable exists using $\le k$ time slots.*
+- **Resource Limitation (`RESOURCE_LIMITED`):** If the search exceeds `max_nodes` (default: 100,000) or `timeout_seconds` (default: 5.0s), the algorithm terminates safely with status `RESOURCE_LIMITED`.
+  > **Crucial Distinction:** SLOTWISE *never* reports a truncated search as proven infeasible. It explicitly informs the user that the search was bounded and recommends relaxing $k$ or adjusting node budgets.
+
+---
+
+## 7. Complexity Analysis Matrix
+
+| Operation / Algorithm | Best-Case Time | Average-Case Time | Worst-Case Time | Auxiliary Space | Peak Space |
+|---|---|---|---|---|---|
+| **Conflict Graph Construction** | $O(\|V\| + \|R\|)$ | $O(\|V\| + \|R\| + \|E\|)$ | $O(\|V\| + \|S\| \cdot D_{\text{max}}^2)$ | $O(\|V\| + \|E\|)$ | $O(\|V\| + \|E\|)$ |
+| **Welsh-Powell Greedy Coloring** | $O(\|V\| \log \|V\| + \|E\|)$ | $O(\|V\|^2 + \|E\|)$ | $O(\|V\|^2 + \|E\|)$ | $O(\|V\|)$ | $O(\|V\| + \|E\|)$ |
+| **Exact Backtracking ($k$-Coloring)** | $O(\|V\|)$ *(immediate fit)* | $O(c^{\|V\|}), c < k$ *(pruned)* | $O(k^{\|V\|})$ *(dense NP-hard)* | $O(\|V\|)$ *(call stack)* | $O(\|V\| + \|E\|)$ |
+| **Independent Schedule Validator** | $O(\|V\| + \|E\|)$ | $O(\|V\| + \|E\|)$ | $O(\|V\| + \|E\|)$ | $O(\|V\|)$ | $O(\|V\| + \|E\|)$ |
+| **Cryptographic Graph Fingerprint (SHA-256)** | $O(\|V\| \log \|V\| + \|E\| \log \|E\|)$ | $O(\|V\| \log \|V\| + \|E\| \log \|E\|)$ | $O(\|V\| \log \|V\| + \|E\| \log \|E\|)$ | $O(\|V\| + \|E\|)$ | $O(\|V\| + \|E\|)$ |
+| **CSV Validation & Parsing** | $O(N_{\text{rows}})$ | $O(N_{\text{rows}})$ | $O(N_{\text{rows}})$ | $O(N_{\text{rows}})$ | $O(N_{\text{rows}})$ |
+
+*$|V|$ = examinations, $|E|$ = conflict edges, $|R|$ = enrolments, $|S|$ = students, $D_{\text{max}}$ = max student course load, $k$ = slots.*
+
+---
+
+## 8. System Architecture & Component Flow
+
+### Component Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph Client ["Frontend Client (React 18 + Vite + TypeScript)"]
+        UI["UI Pages: Explorer, Lab, Timetable, Import"]
+        State["State Stores & Theme Context"]
+        Flow["Interactive Canvas (@xyflow/react)"]
+        ClientAPI["Typed API Client (Axios / Fetch)"]
+        UI --> State
+        UI --> Flow
+        UI --> ClientAPI
+    end
+
+    subgraph Server ["Backend Application (FastAPI + Python 3.12)"]
+        Router["FastAPI Router (/api)"]
+        HealthProbes["Probes: /health, /ready"]
+        ServiceLayer["Service Layer (Scheduling, Graph, Import)"]
+        Router --> ServiceLayer
+        HealthProbes --> ServiceLayer
+    end
+
+    subgraph Algorithms ["Algorithmic Engine (DAA Core)"]
+        Builder["Graph Builder (builder.py)"]
+        GraphModel["ConflictGraph Model (model.py)"]
+        Greedy["Greedy Welsh-Powell (greedy.py)"]
+        Backtrack["Exact Backtracking (backtracking.py)"]
+        Validator["Independent Validator (validator.py)"]
+
+        ServiceLayer --> Builder
+        Builder --> GraphModel
+        ServiceLayer --> Greedy
+        ServiceLayer --> Backtrack
+        Greedy --> Validator
+        Backtrack --> Validator
+    end
+
+    subgraph Persistence ["Relational Storage (SQLite + SQLAlchemy 2.x)"]
+        DB[(slotwise.db)]
+        ExamsTable["examinations"]
+        StudentsTable["students"]
+        EnrolmentsTable["enrolments"]
+        SchedulesTable["schedules"]
+        DB --- ExamsTable
+        DB --- StudentsTable
+        DB --- EnrolmentsTable
+        DB --- SchedulesTable
+        ServiceLayer --> DB
+    end
+
+    ClientAPI <==>|"REST / JSON & RFC 4180 CSV"| Router
+```
+
+### End-to-End Scheduling & Validation Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Academic Registrar
+    participant UI as Web Frontend (React)
+    participant API as FastAPI Backend
+    participant Graph as Graph Builder & Model
+    participant Engine as DAA Coloring Engine
+    participant Cert as Independent Validator
+    participant DB as SQLite Database
+
+    Admin->>UI: Selects Algorithm (Welsh-Powell / Backtracking) & Target Slots
+    UI->>API: POST /api/scheduling/run {algorithm, ordering, max_colors}
+    API->>DB: Query Examinations, Students, Enrolments
+    DB-->>API: Active Relational Records
+    API->>Graph: Build ConflictGraph G = (V, E)
+    Graph-->>API: Graph Model with Degrees & SHA-256 Fingerprint
+    API->>Engine: Execute Coloring(G, k)
+    Engine-->>API: ColoringResult {assignment, slots_used, status}
+    API->>Cert: validate_schedule(G, assignment, max_colors)
+    Cert-->>API: ValidationReport {is_valid: true, violations: 0}
+    API-->>UI: ScheduleRunResponse + Metrics + Pedagogical Explanation
+    UI->>Admin: Renders Slot Swimlanes, Canvas Coloring, and Certificate
+    Admin->>UI: Clicks "Save Timetable"
+    UI->>API: POST /api/schedules {name, slot_assignments, date_config}
+    API->>Cert: Re-validate Server-Side Before Write
+    Cert-->>API: Verified Valid
+    API->>DB: INSERT INTO schedules (id, fingerprint, assignments)
+    DB-->>API: Record Persisted (201 Created)
+    API-->>UI: Saved Schedule Confirmation
+```
+
+---
+
+## 9. Technology Stack
+
+### Backend
+- **Python 3.12:** Type hints, dataclasses, pattern matching.
+- **FastAPI 0.115+:** High-performance asynchronous REST API framework with automatic OpenAPI documentation.
+- **Pydantic 2.9+:** Strict data validation, response serialization, and schema generation.
+- **SQLAlchemy 2.0+:** Modern ORM and transactional query builder.
+- **SQLite 3:** Single-file relational database with strict `PRAGMA foreign_keys=ON`.
+- **Pytest 8.0+:** Comprehensive unit, integration, and E2E test suites with isolated temporary databases.
+- **Uvicorn:** High-throughput ASGI production server.
+
+### Frontend
+- **React 18:** Functional components, hooks, suspense, and concurrent mode.
+- **Vite 5.4+:** High-speed development server and optimized Rollup production bundler.
+- **TypeScript 5.x (Strict):** Strict null checking and end-to-end type safety.
+- **Tailwind CSS 3.4+:** Utility-first design tokens with customized dark/light themes.
+- **Phosphor Icons:** Accessible, cohesive iconography.
+- **@xyflow/react 12+ (React Flow):** Hardware-accelerated canvas for interactive conflict graph visualization.
+- **Vitest:** Blazing-fast component and unit testing with `@testing-library/react`.
+
+---
+
+## 10. Annotated Project Structure
 
 ```text
 timetable_conflict_resolver/
+├── Dockerfile                  # Multi-stage production container build
+├── docker-compose.yml          # Production container orchestration with SQLite persistence
+├── .dockerignore               # Container build exclusions
+├── .env.example                # Root environment template
+├── .gitignore                  # Git exclusions for secrets, venv, databases, caches
+├── pytest.ini                  # Pytest configuration and warning filters
+├── README.md                   # Complete system documentation and DAA reference
+├── requirements.txt            # Root requirements pointer
+│
 ├── backend/
 │   ├── app/
-│   │   ├── __init__.py
 │   │   ├── algorithms/
-│   │   │   ├── __init__.py
-│   │   │   ├── backtracking.py   # Exact Backtracking K-Coloring
-│   │   │   └── greedy.py         # Heuristic Greedy Coloring (Welsh-Powell)
+│   │   │   ├── backtracking.py # Exact Backtracking K-Coloring with pruning & diagnostics
+│   │   │   └── greedy.py       # Heuristic Welsh-Powell Greedy Graph Coloring
 │   │   ├── graph/
-│   │   │   ├── __init__.py
-│   │   │   ├── builder.py        # Graph construction from student enrolments
-│   │   │   └── model.py          # Undirected ConflictGraph model
-│   │   ├── schemas/
-│   │   │   ├── __init__.py
-│   │   │   └── models.py         # Exam, Enrolment, ColoringResult, ValidationReport
-│   │   ├── services/
-│   │   │   └── __init__.py       # Service placeholders for future phases
-│   │   └── validation/
-│   │       ├── __init__.py
-│   │       └── validator.py      # Independent schedule integrity validator
-│   ├── tests/
-│   │   ├── __init__.py
-│   │   ├── test_backtracking.py  # Tests for backtracking, limits, and infeasibility
-│   │   ├── test_graph.py         # Tests for graph model, builder, and enrolments
-│   │   ├── test_greedy.py        # Tests for greedy coloring, orderings, and limits
-│   │   └── test_validator.py     # Tests for independent validator
-│   ├── .env.example              # Environment variables template
-│   └── requirements.txt          # Python dependencies
-├── frontend/
-│   ├── public/
-│   │   └── favicon.svg           # Branded SVG favicon
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── layout/           # AppShell, Header, Sidebar
-│   │   │   └── ui/               # Button, Input, Card, Badge, Tooltip, Dialog, etc.
-│   │   ├── context/              # ThemeContext, ToastContext
-│   │   ├── lib/                  # Utility helpers (cn)
-│   │   ├── routes/               # OverviewPage, PlaceholderPage, router config
-│   │   ├── styles/               # tokens.css, index.css
-│   │   └── test/                 # Vitest test suites (theme, navigation, components)
-│   ├── index.html                # Anti-flash script and font preconnects
-│   ├── package.json              # React 18, Vite, Tailwind CSS, Phosphor Icons
-│   ├── tailwind.config.js        # Design tokens mapping
-│   ├── tsconfig.json             # Strict TypeScript configuration
-│   └── vite.config.ts            # Vite bundler configuration
-├── .gitignore
-├── pytest.ini                    # Pytest configuration
-├── README.md                     # Documentation
-└── requirements.txt              # Root requirements pointer
+│   │   │   ├── builder.py      # Dual conflict graph builder from student enrolments
+│   │   │   └── model.py        # Set-based undirected ConflictGraph data structure
+│   │   ├── models/             # SQLAlchemy ORM models
+│   │   │   ├── dataset.py      # Dataset metadata model
+│   │   │   ├── enrolment.py    # Student-course enrolment model (composite unique key)
+│   │   │   ├── examination.py  # Examination course model
+│   │   │   ├── schedule.py     # Persistent timetable schedule model
+│   │   │   └── student.py      # Student profile model
+│   │   ├── routers/            # FastAPI API endpoint controllers
+│   │   │   ├── enrolments.py   # Enrolment management routes
+│   │   │   ├── examinations.py # Course catalog routes
+│   │   │   ├── graph.py        # Dynamic conflict graph serialization
+│   │   │   ├── health.py       # Container readiness & liveness probes (/health, /ready)
+│   │   │   ├── imports.py      # CSV validation preview & sample dataset studio
+│   │   │   ├── sample_data.py  # Legacy sample data routes
+│   │   │   ├── schedules.py    # Timetable persistence, staleness check, CSV/JSON export
+│   │   │   ├── scheduling.py   # Algorithm execution & side-by-side comparison
+│   │   │   └── students.py     # Student directory routes
+│   │   ├── schemas/            # Pydantic data schemas
+│   │   │   ├── graph.py        # Graph vertices, edges, and metrics schemas
+│   │   │   ├── health.py       # Health probe response schema
+│   │   │   ├── imports.py      # CSV preview, audit reports, and commit schemas
+│   │   │   ├── models.py       # Common DAA schemas (ColoringResult, ValidationReport)
+│   │   │   ├── schedule.py     # Saved schedule request/response schemas
+│   │   │   └── scheduling.py   # Algorithm run & comparison schemas
+│   │   ├── services/           # Business logic service layer
+│   │   │   ├── graph_service.py       # Dynamic graph construction & SHA-256 fingerprinting
+│   │   │   ├── import_service.py      # CSV parsing, multi-encoding, and row diagnostics
+│   │   │   ├── sample_data_service.py # Benchmark dataset generation & loading
+│   │   │   ├── schedule_service.py    # Schedule persistence, staleness & CSV generator
+│   │   │   └── scheduling_service.py  # Algorithm orchestration, timing, and explanations
+│   │   ├── validation/
+│   │   │   └── validator.py    # Independent schedule validation engine
+│   │   ├── config.py           # Application settings and environment parsing
+│   │   ├── database.py         # SQLAlchemy engine, session maker, and PRAGMA configuration
+│   │   └── main.py             # FastAPI entrypoint, SPA static serving, error handlers
+│   ├── tests/                  # Backend Pytest Test Suite (119 passing tests)
+│   │   ├── conftest.py         # Isolated SQLite database fixtures
+│   │   ├── test_api_e2e.py     # API endpoint integration tests
+│   │   ├── test_api_graph.py   # Conflict graph endpoint tests
+│   │   ├── test_api_imports.py # CSV validation and sample dataset studio tests
+│   │   ├── test_api_schedules.py # Schedule persistence, staleness, and CSV export tests
+│   │   ├── test_api_scheduling.py # Algorithm run and comparison endpoint tests
+│   │   ├── test_backtracking.py # Backtracking algorithm unit tests
+│   │   ├── test_database.py    # Relational integrity and cascade tests
+│   │   ├── test_e2e_workflow.py # Comprehensive 15-step end-to-end user journey test
+│   │   ├── test_graph.py       # Conflict graph model and builder unit tests
+│   │   ├── test_greedy.py      # Welsh-Powell greedy algorithm unit tests
+│   │   └── test_validator.py   # Independent schedule validator unit tests
+│   ├── .env.example            # Backend environment variables example
+│   └── requirements.txt        # Pinned Python package dependencies
+│
+└── frontend/                   # React Frontend Application
+    ├── public/                 # Static assets and favicon
+    ├── src/
+    │   ├── components/         # Reusable UI components
+    │   │   ├── calendar/       # Calendar grid and slot swimlane components
+    │   │   ├── graph/          # React Flow custom nodes, toolbars, and details panel
+    │   │   ├── layout/         # AppShell, Header, Sidebar navigation
+    │   │   └── ui/             # Buttons, inputs, modals, cards, badges, tabs
+    │   ├── context/            # AuthContext, ThemeContext, ToastContext
+    │   ├── lib/                # Utility helpers (cn, formatters, slot coloring tokens)
+    │   ├── routes/             # Primary application pages
+    │   │   ├── AlgorithmLabPage.tsx   # Algorithm laboratory & comparative benchmarking
+    │   │   ├── ConflictGraphPage.tsx  # Interactive conflict graph explorer
+    │   │   ├── DashboardPage.tsx      # Overview metrics, charts, and quick actions
+    │   │   ├── DataImportPage.tsx     # CSV batch importer & sample dataset studio
+    │   │   ├── LandingPage.tsx        # Public marketing landing page
+    │   │   ├── LoginPage.tsx          # Login experience with dev bypass
+    │   │   ├── SignupPage.tsx         # Signup registration experience
+    │   │   └── TimetablePage.tsx      # Timetable calendar, history, and CSV/print export
+    │   ├── services/
+    │   │   └── apiClient.ts    # Typed API client interfacing with FastAPI backend
+    │   ├── styles/             # Design tokens and Tailwind styles
+    │   └── test/               # Vitest Frontend Test Suite (73 passing tests)
+    ├── index.html              # HTML shell with anti-flash theme script
+    ├── package.json            # Node.js dependencies and scripts
+    ├── tailwind.config.js      # Brand color tokens (#111318, #1B1E25, #F5A64A, #69C9B1)
+    ├── tsconfig.json           # Strict TypeScript compiler options
+    └── vite.config.ts          # Vite configuration with proxy and path aliases
 ```
 
 ---
 
-## 2. Graph Representation
-
-The conflict graph $G = (V, E)$ represents the examination timetable problem:
-- **Vertices ($V$):** Each examination is uniquely identified by an alphanumeric identifier (e.g., `'CS101'`, `'MATH201'`). Even examinations with zero enrolments are registered as isolated vertices ($d(v) = 0$).
-- **Edges ($E$):** An undirected edge $(u, v) \in E$ indicates a conflict: at least one student is concurrently enrolled in both examinations $u$ and $v$. They must not be assigned to the same time slot (color).
-- **Adjacency Storage:** Adjacency is stored using `dict[str, set[str]]`. Set-based adjacency provides $O(1)$ average-time edge checks, symmetric edge insertion, and duplicate edge prevention.
-- **Constraints Enforced:**
-  - Self-loops $(u, u)$ are rejected with `SelfLoopError`.
-  - Operations on unregistered vertices raise `VertexNotFoundError`.
-  - Edge counts reflect unique undirected pairs $\frac{1}{2} \sum_{v \in V} d(v)$.
-  - Deterministic vertex and neighbor iteration orderings are guaranteed.
-
----
-
-## 3. Input Format & Graph Construction
-
-The graph builder (`build_conflict_graph`) accepts examination catalogs and enrolment records in multiple formats (Pydantic models, dictionaries, tuples, or strings).
-
-### Input Formats
-
-1. **Examinations Catalog:**
-   - List of string identifiers: `["CS101", "MATH101", "PHYS101"]`
-   - List of `Exam` models: `[Exam(id="CS101", name="Intro to CS"), ...]`
-   - List of dictionaries: `[{"id": "CS101", "name": "Intro to CS"}, ...]`
-
-2. **Student Enrolments:**
-   - List of tuples: `[("Student1", "CS101"), ("Student1", "MATH101"), ("Student2", "PHYS101")]`
-   - List of `Enrolment` models: `[Enrolment(student_id="S1", exam_id="CS101"), ...]`
-   - Mapping (dict): `{"Student1": ["CS101", "MATH101"], "Student2": ["PHYS101"]}`
-
-### Edge Case Handling
-- **Single Enrolment:** Students registered for only 1 exam generate no edges; the exam vertex remains present in the graph.
-- **Multiple Enrolments:** A student taking $m$ exams generates $\binom{m}{2}$ conflict edges between all pairs.
-- **Duplicate Records:** Duplicate `(student_id, exam_id)` records are deduplicated automatically using set hashing.
-- **Exams Without Students:** Retained as isolated vertices with degree 0.
-- **Unknown Examination Reference:** If an enrolment references an uncatalogued exam, `UnknownExamReferenceError` is raised.
-- **Empty Datasets:** Passing empty exams and enrolments produces a clean empty `ConflictGraph` ($|V|=0, |E|=0$).
-
----
-
-## 4. Algorithm Interfaces and Outputs
-
-Both algorithms return a structured `ColoringResult` model:
-
-```python
-class ColoringResult(BaseModel):
-    assignment: Dict[str, int]   # exam_id -> slot index (1, 2, ...)
-    color_count: int             # Total distinct colors/slots used
-    status: ColoringStatus       # SUCCESS, INFEASIBLE, LIMIT_EXCEEDED, INCOMPLETE
-    is_complete: bool            # True only if all vertices validly colored
-    metadata: Dict[str, Any]     # Execution statistics (nodes, backtracks, ms)
-```
-
-### 4.1 Greedy Graph Coloring
-
-```python
-from backend.app.algorithms.greedy import greedy_coloring
-
-result = greedy_coloring(
-    graph=graph,
-    ordering_strategy="descending_degree",  # or "natural"
-    max_colors=5                            # optional constraint
-)
-```
-
-- **Orderings Supported:**
-  - `"descending_degree"` (Welsh-Powell): Orders vertices by degree descending, breaking ties by vertex ID ascending.
-  - `"natural"`: Orders vertices strictly alphabetically by vertex ID.
-- **Color Limit (`max_colors`):** If any vertex requires a slot index $> \text{max\_colors}$, the algorithm halts and returns `ColoringStatus.INCOMPLETE` with `is_complete=False`.
-
-### 4.2 Backtracking $K$-Coloring
-
-```python
-from backend.app.algorithms.backtracking import backtracking_k_coloring
-
-result = backtracking_k_coloring(
-    graph=graph,
-    k=3,                          # maximum allowed slots
-    max_nodes=10000,              # optional node budget
-    timeout_seconds=5.0,          # optional deadline
-    ordering_strategy="descending_degree"
-)
-```
-
-- **Validation:** $k$ must be a positive integer ($k \ge 1$).
-- **Diagnostics Recorded in `metadata`:**
-  - `nodes_explored`: Total recursive decision states evaluated.
-  - `backtracks`: Total dead ends where assignments were undone.
-  - `elapsed_time_ms`: Wall-clock execution time in milliseconds.
-  - `proven_infeasible`: Boolean flag indicating mathematical proof of infeasibility.
-
----
-
-## 5. Independent Validator
-
-The validator (`validate_schedule`) operates independently of algorithm claims and evaluates the ground-truth graph against the candidate schedule:
-
-```python
-from backend.app.validation.validator import validate_schedule
-
-report = validate_schedule(
-    graph=graph,
-    assignment=result.assignment,
-    max_colors=3,
-    allowed_colors={1, 2, 3}
-)
-
-if not report.is_valid:
-    print("Violations:", report.errors)
-```
-
-**Checks Performed:**
-1. `check_unknown_examinations`: Rejects examinations in assignment not present in the graph.
-2. `check_missing_examinations`: Flags examinations present in the graph but unassigned (incomplete schedule).
-3. `check_color_validity`: Ensures colors are positive integers ($c \in \mathbb{Z}^+$), rejecting non-integers, booleans, and negative values.
-4. `check_color_range`: Confirms all colors satisfy $c \le \text{max\_colors}$ and $c \in \text{allowed\_colors}$.
-5. `check_conflicts`: Iterates through every edge $(u, v) \in E$ and verifies that $\text{assignment}[u] \neq \text{assignment}[v]$.
-
----
-
-## 6. Theoretical Analysis & Algorithmic Trade-offs
-
-### 6.1 Greedy Coloring's Limitations
-- **Polynomial Runtime:** Runs in $O(|V|^2 + |E|)$ time, making it exceptionally fast for large graphs.
-- **Heuristic Nature:** Greedy coloring is order-dependent and does **not** guarantee the chromatic number $\chi(G)$ (the theoretical minimum number of time slots).
-- **Suboptimality Example (Crown Graph $K_{n, n} - nK_2$):** For bipartite graphs (which have $\chi(G) = 2$), an unfavorable vertex ordering can force greedy coloring to use up to $\frac{|V|}{2}$ colors instead of 2. Welsh-Powell ordering mitigates this for many practical university schedules by processing high-degree conflict hubs first, guaranteeing an upper bound of $\Delta(G) + 1$, where $\Delta(G)$ is the maximum vertex degree.
-
-### 6.2 Backtracking's Exponential Worst-Case Behavior
-- **NP-Complete Decision Problem:** Determining whether a general graph can be colored with $k$ colors ($k$-colorability) is NP-complete for $k \ge 3$.
-- **Worst-Case Complexity:** Backtracking searches an assignment tree of height $|V|$ with branching factor $k$. The worst-case time complexity is $O(k^{|V|})$.
-- **Pruning & Heuristics:** By inspecting assigned neighbors before branching and employing descending-degree vertex ordering (first-fail principle), the search tree is pruned substantially in practical instances.
-
-### 6.3 Infeasibility vs. Resource-Limit Termination
-A critical distinction is maintained in SLOTWISE:
-- **`INFEASIBLE` (`proven_infeasible = True`):**
-  The search tree was explored **exhaustively**. Every branch terminated in a conflict without finding a valid assignment. This constitutes a definitive mathematical proof that no schedule exists with $\le k$ slots.
-- **`LIMIT_EXCEEDED` (`proven_infeasible = False`):**
-  The search was terminated early because the resource budget (`max_nodes` or `timeout_seconds`) was reached. The algorithm **does not know** whether a valid schedule exists further down the unexplored search tree. It must never be reported as infeasible.
-
----
-
-## 7. Installation & Test Execution
+## 11. Installation & Execution Guide
 
 ### Prerequisites
-- Python 3.12+
-- Virtual environment (`venv`)
+- **Python 3.12+**
+- **Node.js 20+** and **npm 10+**
+- *Optional:* **Docker** and **Docker Compose**
 
-### Installation
+---
 
+### Option A: Local Development Setup (Recommended for Development)
+
+#### 1. Backend Setup
 ```bash
-# Clone and enter workspace
+# Navigate to project root
 cd timetable_conflict_resolver
 
-# Create virtual environment
+# Create and activate virtual environment
 python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Activate virtual environment
-source .venv/bin/activate
+# Install Python dependencies
+pip install -r backend/requirements.txt
 
-# Install dependencies
-pip install -r requirements.txt
+# Create local environment configuration
+cp backend/.env.example backend/.env
+
+# Run backend development server
+python3 -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+*Backend API and Swagger UI will be available at:* `http://127.0.0.1:8000/docs`
 
-### Running Tests
-
-Execute the full automated test suite with verbose reporting:
-
+#### 2. Frontend Setup (In a New Terminal)
 ```bash
-# From workspace root
-.venv/bin/pytest -v
-```
+# Navigate to frontend directory
+cd timetable_conflict_resolver/frontend
 
-Or using an active virtual environment:
-
-```bash
-pytest -v
-```
-
-To run a specific test module:
-
-```bash
-pytest backend/tests/test_graph.py -v
-pytest backend/tests/test_greedy.py -v
-pytest backend/tests/test_backtracking.py -v
-pytest backend/tests/test_validator.py -v
-```
-
----
-
-## 8. Phase 2: Frontend Design System & Application Shell
-
-Phase 2 establishes the frontend foundation in `frontend/`:
-- **Stack:** React 18, TypeScript (strict mode), Vite, Tailwind CSS v3, React Router v6, Phosphor Icons (`@phosphor-icons/react`), Vitest.
-- **Palette & Tokens:**
-  - Charcoal (`#111318`), Elevated surfaces (`#1B1E25`), Warm amber (`#F5A64A`), Muted teal (`#69C9B1`).
-  - Dark and light themes backed by CSS custom properties in `tokens.css`.
-  - LocalStorage theme persistence with inline anti-flash script in `index.html`.
-- **Component Library:** `Button`, `Input`, `SearchInput`, `Card`, `Badge`, `Tooltip`, `Breadcrumb`, `EmptyState`, `Skeleton`, `ErrorState`, `Dialog`, and `ToastProvider`.
-- **Application Shell:** Collapsible desktop sidebar, mobile responsive navigation drawer, top breadcrumbs, disabled search placeholder, and theme toggle.
-
-### Frontend Development & Testing Commands
-
-```bash
-cd frontend
-
-# Install dependencies
+# Install Node dependencies
 npm install
 
-# Start development server
+# Create frontend environment configuration
+cp .env.example .env
+
+# Start Vite development server
 npm run dev
-
-# Run TypeScript typecheck
-npm run typecheck
-
-# Run frontend tests
-npm test
-
-# Build production bundle
-npm run build
 ```
+*Frontend application will be accessible at:* `http://localhost:5173`
 
 ---
 
-## 9. Phase 3: Landing Page & Authentication
+### Option B: Docker Compose Setup (Single-Command Production Deployment)
 
-Phase 3 introduces the public landing page and authentication experience:
-
-- **Public Marketing Landing Page (`/`):**
-  - Brand identity: **SLOTWISE** (*Exam Scheduling Studio*).
-  - Primary message: *"Every exam has its place. Every conflict has a solution."*
-  - **Interactive Conflict Graph Illustration:** Custom SVG-based visualization demonstrating examinations as vertices, concurrent student registrations as conflict edges, and valid chromatic time slots without conflicts.
-  - **Feature Showcase:** Conflict graph construction, Welsh-Powell greedy coloring, exact backtracking with node budgets, independent timetable validation, and algorithm diagnostics.
-  - **Three-Step Workflow:** Ingest student enrolments $\to$ Construct conflict graph $\to$ Solve & independently verify.
-  - **Algorithm Comparison:** Transparent trade-off matrix contrasting polynomial heuristic speed ($O(|V|^2 + |E|)$) with exponential exact verification ($O(k^{|V|})$).
-  - Seamless navigation, dark/light theme switching, and responsive design.
-
-- **Authentication System:**
-  - **Login Route (`/login`):** Email and password validation, show/hide password toggle, loading submission states, explicit error handling, and return-to-destination redirection (`?returnUrl=...`).
-  - **Signup Route (`/signup`):** Full name, academic email, minimum 8-character password with complexity rules, confirmation password matching, and submission error states.
-  - **Architecture & Security:**
-    - Typed authentication service (`authService`) with standardized error codes (`INVALID_CREDENTIALS`, `EMAIL_TAKEN`, `BACKEND_UNAVAILABLE`).
-    - `AuthContext` state management providing user session status and reactive updates.
-    - `ProtectedRoute` component guarding `/app/*` routes with automatic redirects to login.
-    - **No Dummy Logins / No Plaintext Passwords:** When backend persistence is offline (prior to Phase 4 API endpoints), forms cleanly notify users that authentication services require the backend API without accepting fake credentials or exposing passwords.
-
----
-
-## 10. Phase 4: Backend API, Database, and Data Management
-
-Phase 4 establishes the persistent backend layer, relational database models, dynamic conflict graph API, and transactional sample data loading:
-
-- **Stack:** Python 3.12, FastAPI, SQLAlchemy 2.x, SQLite (with `PRAGMA foreign_keys = ON`), Alembic migrations, Pydantic v2, Uvicorn, and Pytest.
-- **Architectural Organization:**
-  - `backend/app/config.py`: Centralized environment configuration and CORS origins.
-  - `backend/app/database.py`: SQLAlchemy engine, SQLite foreign-key enforcement, session provider (`get_db`), and schema initializers.
-  - `backend/app/models/`: Declarative ORM models (`ExamModel`, `StudentModel`, `EnrolmentModel`, `DatasetMetadataModel`) with indexes, unique constraints, and cascading deletions.
-  - `backend/app/schemas/`: Typed request/response validation schemas with field-level sanitization.
-  - `backend/app/repositories/`: Data access layer isolating SQL queries and pagination.
-  - `backend/app/services/`: Business logic, referential validations, dynamic conflict graph computation via the Phase 1 builder, and transactional sample dataset loading.
-  - `backend/app/routers/`: FastAPI endpoints organized by domain.
-  - `backend/app/main.py`: ASGI application factory with startup lifespan and CORS middleware.
-  - `backend/alembic/`: Repeatable, version-controlled database migrations.
-
-### API Endpoints Reference
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/health` | Health check verifying API status and database connectivity |
-| `GET` | `/api/exams` | List paginated examinations with optional search filter |
-| `POST` | `/api/exams` | Create examination (validates unique course code) |
-| `GET` | `/api/exams/{id}` | Retrieve examination by UUID or course code |
-| `PATCH` | `/api/exams/{id}` | Partially update examination fields with uniqueness checks |
-| `DELETE` | `/api/exams/{id}` | Delete examination and cascade-clean enrolments |
-| `GET` | `/api/students` | List paginated students with optional search filter |
-| `POST` | `/api/students` | Register student (validates unique student identifier) |
-| `GET` | `/api/students/{id}` | Retrieve student by UUID or institutional student_id |
-| `PATCH` | `/api/students/{id}` | Partially update student fields with uniqueness checks |
-| `DELETE` | `/api/students/{id}` | Delete student and cascade-clean enrolments |
-| `GET` | `/api/enrolments` | List student course enrolments (filterable by exam or student) |
-| `POST` | `/api/enrolments` | Enroll student in examination (validates references, prevents duplicates) |
-| `DELETE` | `/api/enrolments/{id}` | Remove an enrolment record |
-| `GET` | `/api/graph/conflicts` | Dynamically reconstructs conflict graph from database enrolments |
-| `POST` | `/api/sample-data` | Transactionally load 10 exams & 20 students (`reset=False` protects data) |
-| `POST` | `/api/sample-data/load` | Alias for loading sample academic dataset |
-
-### Dynamic Conflict Graph Construction
-
-`GET /api/graph/conflicts` queries active persistent database records and constructs the graph using the Phase 1 `build_conflict_graph` engine. It returns:
-- Vertices with metadata and computed vertex degrees.
-- Unique undirected conflict edges with weight (number of shared students) and shared student rosters.
-- Adjacency mapping and list of isolated examinations (degree 0).
-- Deterministic output without self-loops or stale caching.
-
-### Server Startup & Migration Commands
+Run both the compiled frontend and backend in a unified, isolated container with persistent SQLite volume storage:
 
 ```bash
-# Apply database migrations
-.venv/bin/alembic upgrade head
+# Build and run container
+docker compose up --build
 
-# Start FastAPI development server
-.venv/bin/uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+# Or run in detached background mode
+docker compose up -d --build
 ```
+*Open your browser at:* `http://localhost:8000`
+- The React Single Page Application is served directly at `/`.
+- Interactive Swagger documentation is accessible at `/docs`.
+- SQLite database is persisted inside the `slotwise-data` Docker volume at `/app/data/slotwise.db`.
 
-- **Interactive API Documentation (Swagger UI):** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Alternative ReDoc UI:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-
-### Automated Test Execution
-
+To stop the container:
 ```bash
-# Run all backend tests (Phase 1 algorithm tests + Phase 4 persistent API tests)
-.venv/bin/pytest -v
-
-# Run frontend tests
-cd frontend && npm test
-```
-
-### Access Model & Security Assumptions
-
-- **Development Access Model:** The Phase 4 data management API operates in local development mode without pretending that a full multi-user authentication boundary is enforced.
-- **CORS Protection:** Requests are restricted to configured origins (`http://localhost:5173`, `http://127.0.0.1:5173`).
-- **No Plaintext Passwords / No Fake Auth:** The backend does not expose insecure mock authentication endpoints or accept unhashed dummy passwords.
-
----
-
-## 11. Phase 5: Frontend–Backend Integration
-
-Phase 5 connects the React + TypeScript frontend with the persistent FastAPI backend, establishing real-time data flow across examinations, student enrolments, and dynamic conflict graphs:
-
-- **Centralized Typed API Client (`frontend/src/services/apiClient.ts`):**
-  - Configured via `VITE_API_BASE_URL` (with fallback to Vite development proxy `/api` pointing to `http://127.0.0.1:8000`).
-  - Strict TypeScript data contracts (`frontend/src/types/api.ts`) mirroring FastAPI schemas.
-  - Automatic error normalization handling HTTP 404, 409 (duplicate unique keys), 422 (validation errors), 500, and offline network errors.
-  - `AbortSignal` cancellation support preventing stale asynchronous overwrites on unmount.
-  - Safe configuration template provided in [`frontend/.env.example`](file:///Users/rohankumar/Desktop/timetable_conflict_resolver/frontend/.env.example).
-
-- **Live Backend Connection Indicator (`BackendStatusBadge.tsx`):**
-  - Integrated directly in the application shell header.
-  - Real-time connection states: *Checking API*, *Backend Connected* (with version & DB metadata tooltip), and *API Offline* (with manual retry trigger and operational troubleshooting guidance).
-
-- **Live Overview Dashboard (`OverviewPage.tsx`):**
-  - Renders genuine counts computed from persistent SQLite tables: Active Examinations, Registered Students, Total Course Enrolments, and Conflict Edges ($|E|$).
-  - Top Conflict Hubs table sorted by degree centrality ($d(v)$) highlighting the hardest-to-schedule examinations.
-  - Transactional sample dataset loader with optional database reset toggle.
-  - Honest zero-state handling with no fabricated metrics or fake recent events.
-
-- **Examination Management Catalog (`ExaminationsPage.tsx`):**
-  - Paginated course catalog with live keyword search.
-  - Interactive modal dialogs for registering new examinations and modifying course metadata.
-  - Confirmation modal for cascade deletion with live report of cleaned student enrolments.
-  - Client-side validation paired with backend 409 duplicate code error handling.
-
-- **Student & Enrolment Management (`StudentsPage.tsx`):**
-  - Student roster with search by institutional identifier or student name.
-  - Student creation and profile editing modals.
-  - Course Enrolment Manager: Inspect enrolled courses, add new courses, drop enrolments, and handle duplicate enrolment conflicts with clear toast notifications.
-
-- **Conflict Graph Data Summary (`ConflictGraphPage.tsx`):**
-  - Displays mathematical graph properties derived from `/api/graph/conflicts`: $|V|$, $|E|$, graph density, maximum degree $\Delta(G)$, and isolated courses.
-  - Dual-tab inspection:
-    1. *Vertices & Adjacency:* Course degree distribution and adjacent conflicting course codes.
-    2. *Conflict Edges:* Weighted conflict pairs with shared student identifiers.
-  - Clear milestone banner indicating interactive force-directed canvas arrives in Phase 6.
-
-### Running Frontend & Backend Concurrently
-
-```bash
-# Terminal 1: Start FastAPI backend
-.venv/bin/uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
-
-# Terminal 2: Start Vite frontend dev server
-cd frontend && npm run dev
-```
-
-The frontend will be available at `http://localhost:5173/` (Landing) and `http://localhost:5173/app` (Studio Shell).
-
-### Verification & Testing Commands
-
-```bash
-# Backend pytest suite (104 passing tests)
-.venv/bin/pytest -v
-
-# Frontend TypeScript type check
-cd frontend && npm run typecheck
-
-# Frontend test suite (59 passing tests across 9 test files)
-cd frontend && npm test -- --run
-
-# Frontend production build
-cd frontend && npm run build
+docker compose down
 ```
 
 ---
 
-## 12. Phase 6: Interactive Conflict Graph Explorer
+## 12. API Endpoint Reference
 
-SLOTWISE Phase 6 delivers a fully interactive, production-grade **Conflict Graph Explorer** on `/conflict-graph` (and `/app/conflict-graph`), powered by `@xyflow/react` v12, real backend graph data (`GET /api/graph/conflicts`), and mathematical graph-coloring principles.
-
-### Mathematical Invariants & Architecture
-
-The conflict graph $G = (V, E)$ represents institutional examination scheduling constraints:
-1. **Vertices $V$:** Each examination registered in the database is a vertex $v \in V$, regardless of whether it has conflicts.
-2. **Conflict Edges $E$:** An undirected edge $(u, v) \in E$ exists if and only if at least one student is enrolled in both course $u$ and course $v$.
-3. **No Self-Loops & No Duplicate Edges:** For all $v \in V$, $(v, v) \notin E$, and for each pair $\{u, v\}$, exactly one undirected edge exists.
-4. **Dynamic Edge Weights:** Each edge $(u, v)$ carries an exact weight $w(u, v) = |S_u \cap S_v|$ representing the exact count of shared students.
-5. **Conflict Degree $d(v)$:** The degree of vertex $v$ equals the number of incident conflict edges. Vertices with $d(v) = 0$ are isolated (can be scheduled in any slot), while vertices with $d(v) \ge 3$ are high-degree scheduling hubs.
-6. **Zero-Conflict Invariant:** If $|V| > 0$ and $|E| = 0$, all examinations are pairwise disjoint in student enrolment. The chromatic number is $\chi(G) = 1$, and an informative banner confirms that all courses can be scheduled concurrently in a single slot.
-
-### Key Interactive Features
-
-- **React Flow Canvas (`@xyflow/react`):**
-  - **Custom Examination Node (`ExamNode.tsx`):** Displays course code, full title, department/semester, conflict degree badge ($d(v)$), isolated badge, and 4-way docking handles for dynamic edge routing.
-  - **Deterministic Layout Engine (`graphLayout.ts`):** Partitions the graph into connected components using BFS and computes stable trigonometric coordinates ($x = cx + R \cos\theta, y = cy + R \sin\theta$) without node overlap or layout jitter. Supports **Concentric Hub Centrality**, **Circular**, and **Component Grid** layouts.
-  - **Interactive Highlighting & Dimming:** Clicking an exam node highlights it in accent amber, highlights its direct conflicting neighbours in accent teal, emphasizes incident edges with animated amber strokes, and dims unrelated nodes and edges to 25% opacity. Clicking empty canvas clears selection.
-  - **Sliding Details Panel (`GraphDetailsPanel.tsx`):** Detailed side drawer for the active course displaying course specifications, graph-coloring constraints, list of conflicting courses with student weight badges, expandable shared student rosters, and click-to-focus navigation to jump between connected courses.
-  - **Keyword Search & Instant Filter Pills:** Search by course code or subject title; filter by *All*, *Conflicted (d ≥ 1)*, *Isolated (d = 0)*, and *High Hubs (d ≥ 3)* with non-destructive state preservation.
-  - **Viewport Controls & Navigation:** Smooth pan, zoom (0.2x to 2.5x), Fit to Viewport button, interactive MiniMap with state-colored nodes, and subtle background dot texture.
-  - **Compact Visual Legend (`GraphLegend.tsx`):** Collapsible legend explaining node rings (selected amber, neighbour teal, hub, isolated) and conflict edge weights.
-  - **Tabular Conflict Matrix Toggle:** Retains the dual-table inspection tabs for Vertices & Adjacency and Weighted Conflict Edges alongside the interactive visual canvas.
-
----
-
-## 13. Phase 7: Algorithm Laboratory & Timetable Generation
-
-SLOTWISE Phase 7 introduces the **Algorithm Laboratory**, accessible at `/algorithm-lab` and `/app/algorithms`. It provides a comprehensive, interactive workbench to configure, execute, benchmark, and compare graph-coloring heuristics and exact branch-and-bound algorithms using real university examination and enrolment data.
-
-### Algorithmic Foundations & Backend Orchestration
-
-1. **Greedy Graph Coloring ($O(V^2)$ / Welsh-Powell Heuristic):**
-   - **Ordering Strategies:** Orders vertices by `descending_degree` (Welsh-Powell degree heuristic) or `natural` (input order). Welsh-Powell prioritizes high-degree constraint hubs early, minimizing total chromatic slots.
-   - **Upper Bound:** Produces an upper bound on $\chi(G)$ guaranteed to satisfy $\chi(G) \le \Delta(G) + 1$ (Brook's Theorem).
-   - **Optional Slot Ceiling:** Allows specifying a target slot cap $k$. If the heuristic exceeds $k$, returns status `INCOMPLETE` with partial assignments.
-
-2. **Exact Backtracking ($O(k^V)$ / State-Space Search):**
-   - **Decision Tree & Forward Checking:** Explores depth-first assignment of color slots $[1..k]$ to vertices, pruning infeasible branches when adjacent constraints are violated.
-   - **Exhaustive Infeasibility Certificate:** When the entire state space is exhaustively explored without finding a coloring, proves mathematical infeasibility for $k$ slots (status `INFEASIBLE`).
-   - **Safe Resource Limits:** Guards against exponential explosion via configurable `max_nodes` (default: 100,000) and `timeout_seconds` (default: 5.0s). Exceeding limits returns `RESOURCE_LIMITED`, explicitly informing the user that search was truncated without falsely declaring mathematical infeasibility.
-
-3. **Mandatory Independent Constraint Validation:**
-   - Every execution run is automatically piped through `validate_schedule()` (`backend/app/validation/validator.py`).
-   - A schedule is only stamped `is_valid: true` if:
-     - Completeness: Every registered exam is assigned to a slot.
-     - Pairwise Invariant: For all $(u, v) \in E(G)$, $\text{slot}(u) \ne \text{slot}(v)$.
-     - Contiguity: Assigned slots fall strictly within $[1..k]$.
-
-4. **Side-by-Side Comparison Mode ("Run Both"):**
-   - Runs Welsh-Powell and Exact Backtracking concurrently against the exact same conflict graph snapshot.
-   - Produces a comparative benchmark comparing slots used, CPU duration (ms), nodes explored, backtracks, and theoretical time complexity.
-
-### Frontend Features & User Experience
-
-- **Configurable Solver Workbench:** Mode selector tabs for Greedy, Backtracking, and Run Both. Dynamic Brooks' Bound recommendation button ($\Delta(G) + 1$) for setting sensible slot targets.
-- **Result Metrics Bar & Plain-Language Narrative:** Real-time metrics for status (`COMPLETED`, `INFEASIBLE`, `RESOURCE_LIMITED`, `INCOMPLETE`), slots required, execution time (μs/ms), and 0-conflict validation badge. Pedagogical narrative explains algorithm decisions, bottlenecks, and bounds.
-- **Slot Allocation Grid ("Schedule View"):** Visual swimlane columns for each time slot (`Slot 1`, `Slot 2`, ...). Each slot header uses accessible, deterministic color tokens from `getSlotTheme(slot)`. Course cards display code, title, department, semester, student count, and conflict degree.
-- **Real-Time Conflict Graph Coloring:** The Conflict Graph Explorer directly reflects active slot assignments, tinting nodes and displaying "Slot X" badges while preserving selection rings, edge highlighting, and layout options.
-- **Independent Validation Certificate Tab:** Detailed breakdown of checks performed, zero-conflict certificate, and invariant verification guarantees.
-- **Side-by-Side Benchmark Matrix:** Comparative analytical table evaluating Greedy vs. Backtracking metrics and trade-offs.
-- **Execution History:** Cached session run drawer allowing past solutions to be reloaded into the viewer with a single click.
+| HTTP Method | Route Path | Description | Request Body | Response Schema / Status |
+|---|---|---|---|---|
+| `GET` | `/health` / `/api/health` | Service health & SQLite connection probe | None | `HealthResponse` (200) |
+| `GET` | `/ready` / `/api/ready` | Container orchestrator readiness probe | None | `HealthResponse` (200 / 503) |
+| `GET` | `/docs` | Interactive Swagger OpenAPI UI | None | HTML (200) |
+| `GET` | `/api/exams` | List courses (paginated, search filter) | None | `ExamListResponse` (200) |
+| `POST` | `/api/exams` | Register a new examination course | `ExamCreateRequest` | `ExamResponse` (201) |
+| `GET` | `/api/exams/{id_or_code}` | Get course details and registered enrolments | None | `ExamResponse` (200 / 404) |
+| `PATCH`| `/api/exams/{id_or_code}` | Update course metadata (name, duration, sem) | `ExamUpdateRequest` | `ExamResponse` (200) |
+| `DELETE`| `/api/exams/{id_or_code}`| Delete course and cascade-remove enrolments | None | `{detail: str}` (200) |
+| `GET` | `/api/students` | List students (paginated, search filter) | None | `StudentListResponse` (200) |
+| `POST` | `/api/students` | Create student profile | `StudentCreateRequest` | `StudentResponse` (201) |
+| `GET` | `/api/students/{id}` | Get student profile and registered courses | None | `StudentResponse` (200) |
+| `PATCH`| `/api/students/{id}` | Update student name, email, or semester | `StudentUpdateRequest` | `StudentResponse` (200) |
+| `DELETE`| `/api/students/{id}` | Delete student and cascade-remove enrolments | None | `{detail: str}` (200) |
+| `GET` | `/api/enrolments` | List student course enrolments | None | `List[EnrolmentResponse]` (200) |
+| `POST` | `/api/enrolments` | Enrol student in examination (creates conflicts) | `EnrolmentCreateRequest` | `EnrolmentResponse` (201) |
+| `DELETE`| `/api/enrolments/{id}`| Remove student enrolment | None | `{detail: str}` (200) |
+| `GET` | `/api/graph/conflicts` | Compute and serialize conflict graph | None | `ConflictGraphResponse` (200) |
+| `POST` | `/api/scheduling/run` | Execute Welsh-Powell Greedy or Backtracking | `ScheduleRunRequest` | `ScheduleRunResponse` (200) |
+| `POST` | `/api/scheduling/compare` | Run side-by-side comparative benchmark | `ScheduleCompareRequest` | `ScheduleCompareResponse` (200) |
+| `GET` | `/api/scheduling/runs` | List recent in-memory algorithm runs | None | `List[ScheduleRunResponse]` (200) |
+| `GET` | `/api/schedules` | List all persisted timetable schedules | None | `List[ScheduleSummaryResponse]` (200) |
+| `POST` | `/api/schedules` | Validate and persist verified schedule | `ScheduleCreateRequest` | `ScheduleDetailResponse` (201) |
+| `GET` | `/api/schedules/{id}` | Get saved timetable and staleness status | None | `ScheduleDetailResponse` (200) |
+| `PATCH`| `/api/schedules/{id}` | Update timetable title, notes, or date config | `ScheduleUpdateRequest` | `ScheduleDetailResponse` (200) |
+| `DELETE`| `/api/schedules/{id}` | Delete saved schedule (leaves courses intact) | None | `{detail: str}` (200) |
+| `GET` | `/api/schedules/{id}/export/csv` | Download RFC 4180 CSV export of timetable | None | `text/csv` Attachment (200) |
+| `GET` | `/api/schedules/{id}/export/json` | Download complete timetable snapshot as JSON | None | `application/json` Attachment (200) |
+| `GET` | `/api/imports/templates/{type}` | Download CSV template (exams/students/enrolments)| None | `text/csv` Attachment (200) |
+| `POST` | `/api/imports/{type}/preview` | Pre-flight validation preview of uploaded CSV | Multipart File | `ImportPreviewResponse` (200) |
+| `POST` | `/api/imports/{type}/commit` | Commit validated CSV (atomic or valid-only) | `ImportCommitRequest` | `ImportCommitResponse` (200) |
+| `GET` | `/api/imports/sample-dataset/preview` | Preview 15-exam benchmark dataset specs | None | `SampleDatasetPreviewResponse` (200) |
+| `POST` | `/api/imports/sample-dataset/load` | Load benchmark dataset (append or replace) | `SampleDatasetLoadRequest` | `Dict[str, Any]` (200) |
 
 ---
 
-## 14. Phase 8: Timetable Calendar, Schedule Management & Export
+## 13. Database Design & Relational Schema
 
-SLOTWISE Phase 8 delivers a full-featured examination timetable management and publishing experience at `/timetable` and `/app/calendar` (with aliases `/app/timetable`, `/app/timetable/history`, `/app/timetable/:scheduleId`). It bridges mathematical graph coloring with university administrative workflows, calendar dates, and printable exports.
+```mermaid
+erDiagram
+    examinations ||--o{ enrolments : "has"
+    students ||--o{ enrolments : "enrolled in"
+    
+    examinations {
+        string id PK "UUID"
+        string code UK "Unique Alphanumeric Code, e.g. CS101"
+        string name "Course Title"
+        string department "Academic Department"
+        string semester "Academic Semester"
+        int duration_minutes "Exam Duration"
+        datetime created_at "Creation Timestamp"
+        datetime updated_at "Update Timestamp"
+    }
 
-### Persistent Schedule Architecture & Backend Storage
+    students {
+        string id PK "UUID"
+        string student_id UK "Institutional ID, e.g. S1001"
+        string name "Student Full Name"
+        string email "Institutional Email"
+        string semester "Current Semester"
+        datetime created_at "Creation Timestamp"
+    }
 
-- **Database Model (`backend/app/models/schedule.py`):**
-  - Table `schedules` stores persisted examination schedules with UUID primary keys.
-  - Snapshot fields: `id`, `name`, `description`, `algorithm`, `parameters`, `slot_assignments`, `slot_details`, `slots_used`, `is_valid`, `validation_report`, `graph_fingerprint`, `date_config`, `created_at`, `updated_at`.
-- **Deterministic Graph Fingerprinting & Stale Snapshot Detection:**
-  - `GraphService.compute_graph_fingerprint(db)` calculates a deterministic SHA-256 hash over sorted examinations and sorted weighted conflict edges: $\text{SHA-256}(V \cup E)$.
-  - Stored with each timetable at the moment of creation.
-  - When loading or listing schedules, compares stored fingerprint against the current graph. If source examinations or student enrolments changed, sets `is_stale: true`.
-  - Stale timetables display a prominent warning banner preserving the historical record while recommending re-generation.
-- **Strict Server-Side Validation Enforcement:**
-  - `POST /api/schedules` independently executes `validate_schedule(graph, request.slot_assignments)`.
-  - Rejects invalid schedules or schedules with mutual conflicts with `400 Bad Request`.
-  - Guarantees that only 100% verified, conflict-free timetables can ever be saved.
-- **Safe Timetable Deletion:**
-  - `DELETE /api/schedules/{id}` removes only the timetable snapshot.
-  - Underlying courses, students, and enrolments remain completely untouched.
+    enrolments {
+        string id PK "UUID"
+        string student_id FK "References students.student_id (CASCADE)"
+        string exam_id FK "References examinations.code (CASCADE)"
+        datetime enrolled_at "Enrolment Timestamp"
+    }
 
-### Calendar Date-Time Mapping & Separation of Concerns
+    schedules {
+        string id PK "UUID"
+        string name "Timetable Name"
+        string description "Administrative Notes"
+        string algorithm "Algorithm Used (greedy / backtracking)"
+        json parameters "Ordering Strategy, Timeout, Max Nodes"
+        json slot_assignments "Dictionary {course_code: slot_number}"
+        json slot_details "Course Metadata per Slot"
+        int slots_used "Total Time Slots Required"
+        boolean is_valid "Verified Conflict-Free Certificate"
+        json validation_report "Validator Invariant Snapshot"
+        string graph_fingerprint "SHA-256 Hash of Graph State"
+        json date_config "Start Date, Slots/Day, Session Times"
+        datetime created_at "Creation Timestamp"
+        datetime updated_at "Update Timestamp"
+    }
+```
 
-- **Separation of Chromatic Colors and Real Dates:**
-  - Graph colors default to abstract mathematical slots (`Slot 1`, `Slot 2`, ...).
-  - Chromatic numbers are never conflated with arbitrary dates unless explicitly configured.
-- **Date & Session Configuration (`ScheduleDateConfig`):**
-  - Optional calendar mapping: examination start date, sessions per day (1, 2, or 3), session times (e.g. `09:00 - 12:00`, `14:00 - 17:00`), exam duration (minutes), inter-session breaks, and weekend skipping (Monday–Friday scheduling).
-  - Can be configured when saving or edited anytime via the **Date Settings** dialog.
+### Relational Constraints Enforced
+1. **Unique Examination Code:** Duplicate course codes (e.g. adding two `CS101` courses) are rejected.
+2. **Unique Student ID:** Duplicate institutional student IDs are rejected.
+3. **Composite Unique Enrolment:** `(student_id, exam_id)` pairs are strictly unique. Re-enrolling a student in the same course is idempotent or rejected.
+4. **Cascading Deletions:** Deleting an examination or student automatically purges their associated enrolment records via SQLite `ON DELETE CASCADE`.
+5. **Decoupled Schedule Deletion:** Deleting a saved timetable removes only the timetable snapshot; underlying courses and student rosters remain intact.
 
-### Frontend Timetable Management & Views
+---
 
-- **Slot Swimlane View:**
-  - Visual columns for each chromatic slot with slot headers, date/session badges, and exam count pills.
-  - Course cards showing course code, title, department, semester, and conflict degree $d(v)$.
-  - Conflict guarantee badge on each slot drawer confirming zero mutual student conflicts.
-- **Calendar Grid View:**
-  - Groups slots into calendar days (Day 1, Day 2, ...) with morning, midday, and afternoon session blocks.
-  - If dates are not yet configured, displays a prompt to configure dates or view slot swimlanes.
-- **Tabular View:**
-  - Sortable, filterable table listing Slot, Date, Session Window, Exam Code, Course Title, Department, Semester, Conflict Degree, and Graph Explorer link.
-- **Search & Department Filtering:**
-  - Live search by exam code, title, or department across all views.
-  - Department filter dropdown isolating courses by academic faculty.
-- **Slot Details Modal:**
-  - Detailed inspection of all courses scheduled concurrently in a single slot.
-  - Explicit mathematical proof of pairwise independence ($|S_u \cap S_v| = 0$).
-  - Direct links to inspect individual courses in the Conflict Graph Explorer.
-- **Timetable History Page (`/app/timetable/history`):**
-  - Comprehensive catalog of all saved timetable versions.
-  - Displays algorithm used, slots required, exam count, creation timestamp, and stale status.
-  - Actions: Open Timetable, Rename Title/Description, Export CSV, and Delete (with confirmation dialog).
-- **Save Timetable Integration from Algorithm Lab:**
-  - Prominent "Save as Named Timetable" button appears in the Algorithm Lab as soon as a valid solution is produced.
-  - Opens modal pre-filling title, parameters, and optional date settings.
+## 14. CSV Import Formats & Validation Rules
+
+### 1. Examinations CSV (`exams`)
+```csv
+exam_code,subject_name,department,semester,duration
+CS101,Introduction to Computer Science,Computer Science,Fall 2026,180
+MATH101,Single Variable Calculus,Mathematics,Fall 2026,150
+```
+- **Mandatory Columns:** `exam_code`, `subject_name`.
+- **Optional Columns:** `department`, `semester`, `duration`.
+- **Validation Rules:** `exam_code` and `subject_name` must be non-empty strings; `duration` must be a positive integer $\ge 15$ and $\le 480$. Duplicate codes within the file are flagged.
+
+### 2. Students CSV (`students`)
+```csv
+student_id,student_name,email,semester
+S1001,Ada Lovelace,ada@university.edu,Fall 2026
+S1002,Alan Turing,alan@university.edu,Fall 2026
+```
+- **Mandatory Columns:** `student_id`.
+- **Optional Columns:** `student_name` (or `display_name`), `email`, `semester`.
+- **Validation Rules:** `student_id` must be non-empty. Duplicate student IDs in the file are flagged.
+
+### 3. Enrolments CSV (`enrolments`)
+```csv
+student_id,exam_code
+S1001,CS101
+S1001,MATH101
+S1002,CS101
+```
+- **Mandatory Columns:** `student_id`, `exam_code`.
+- **Validation Rules:** Referential integrity is verified against the database. If a student ID or exam code does not exist in the database, the row is marked with an invalid reference error.
+
+### Commit Strategies
+- **Atomic All-or-Nothing:** Commits the batch to SQLite if and only if 100% of rows are valid. If even one fatal error is found, the transaction is completely rolled back.
+- **Valid-Only:** Commits all valid records while safely skipping duplicates and invalid rows. Returns an audit summary detailing committed vs. rejected counts.
+
+---
+
+## 15. How to Generate a Conflict-Free Timetable
+
+1. **Populate Dataset:**
+   - Navigate to `/data-import`.
+   - Click the **Sample Dataset Studio** tab.
+   - Click **"Load Benchmark Dataset"** (Select **Replace Mode** for a fresh 15-course benchmark).
+2. **Inspect Conflict Topology:**
+   - Navigate to `/explorer`.
+   - Explore the interactive React Flow canvas.
+   - Note high-conflict hubs (`MATH101`, `PHYS101`, `CS101`) and isolated components (`ENG101`).
+3. **Configure & Run Algorithm:**
+   - Navigate to `/laboratory`.
+   - **Mode Selection:** Select **Greedy Coloring**, **Backtracking Search**, or **Run Both (Side-by-Side Benchmark)**.
+   - **Vertex Ordering:** Choose **Welsh-Powell (Descending Degree)** or **Natural Order**.
+   - **Slot Constraints:** Leave unconstrained to find the lowest slots, or click **"Recommend Bound"** to set $k = \Delta(G) + 1$.
+   - Click **"Run Scheduling Algorithm"**.
+4. **Inspect Generated Schedule & Validation Certificate:**
+   - Review the metrics bar (Slots used, status, execution duration in milliseconds).
+   - Read the plain-language narrative explaining algorithm decisions and bounds.
+   - Check the **Validation Certificate** confirming 0 adjacent conflicts and 100% course coverage.
+   - View the **Slot Allocation Swimlanes** showing courses assigned to each chromatic slot.
+5. **Save Timetable:**
+   - Click **"Save as Named Timetable"**.
+   - Provide a title (e.g. `Fall 2026 Official Final Exam Timetable`), description notes, and optional calendar date settings.
+   - Click **"Confirm & Save"**.
+
+---
+
+## 16. How to Save, Manage, and Export Timetables
+
+### Calendar Date-Time Mapping
+SLOTWISE maintains a strict separation of concerns between abstract chromatic slots (`Slot 1`, `Slot 2`, ...) and calendar dates:
+- Users can optionally configure:
+  - Examination Start Date (e.g. `2026-12-01`).
+  - Slots / Sessions Per Day (1, 2, or 3).
+  - Session Time Windows (e.g. `09:00 - 12:00`, `14:00 - 17:00`).
+  - Weekend Exclusion (Monday–Friday scheduling).
+
+### Stale Schedule Detection via SHA-256 Fingerprinting
+Whenever a schedule is saved, SLOTWISE records a deterministic SHA-256 hash of all sorted examinations and conflict edges:
+$$\text{Fingerprint} = \text{SHA-256}(\text{Sorted}(V) \cup \text{Sorted}(E))$$
+If an administrator later adds courses or enrols a student creating new conflicts, the system immediately flags the saved timetable as **Stale**:
+- A prominent amber warning banner informs the user that source enrolments have changed since this timetable was generated.
+- The historical timetable is preserved for audit purposes, but administrators are prompted to re-run the algorithm.
 
 ### Export & Printing
+- **RFC 4180 CSV Download:**
+  Click **"Export CSV"** on any timetable view to download an RFC 4180 compliant CSV formatted as:
+  `Slot,Date,Session Time,Exam Code,Course Name,Department,Semester,Conflict Degree,Duration (Min)`
+- **Printable Timetable View (`@media print`):**
+  Click **"Print"** or press `Cmd+P` / `Ctrl+P`. The stylesheet automatically strips headers, navigation sidebars, and control buttons, rendering a clean, university-branded printable table.
 
-- **RFC 4180 Compliant CSV Export:**
-  - Downloadable via `GET /api/schedules/{id}/export/csv` with `Content-Type: text/csv` and `Content-Disposition`.
-  - Standard headers: `Slot,Date,Session Time,Exam Code,Course Name,Department,Semester,Conflict Degree,Duration (Min)`.
-  - Deterministically sorted by slot ascending, then course code ascending.
-  - Full escaping of commas, quotes, and multiline text.
-- **Print-Ready Timetable (`@media print`):**
-  - "Print" button triggers `window.print()` with custom print stylesheets.
-  - Automatically hides navigation sidebars, headers, filter bars, and action buttons.
-  - Expands table to full page width with clear university headers for PDF printing.
+---
 
-### Verification Commands
+## 17. Testing & Verification
+
+SLOTWISE includes comprehensive backend and frontend test suites verifying algorithms, database integrity, API routes, and user workflows.
+
+### 1. Backend Test Suite (119 Tests Passing)
+Includes unit tests for algorithms, conflict graph builder, database cascading constraints, API controllers, and the 15-step end-to-end integration workflow.
 
 ```bash
-# Backend pytest suite (118 passing tests)
+# Run complete backend test suite
 .venv/bin/pytest -v
+```
 
-# Frontend TypeScript type check
-cd frontend && npm run typecheck
+### 2. Frontend Test Suite (73 Tests Passing)
+Includes component tests, mock API integration tests, graph layout verification, theme toggles, and navigation guards.
 
-# Frontend Vitest test suite (73 passing tests across 11 test files)
+```bash
+# Run Vitest test suite
 cd frontend && npm test -- --run
+```
 
-# Frontend production build
+### 3. Production Frontend Build Verification
+Verifies TypeScript compilation and production asset bundling.
+
+```bash
 cd frontend && npm run build
 ```
 
 ---
 
-## 15. Phase 9: Data Import, Validation & Sample Dataset Studio
+## 18. Known Limitations & Design Trade-Offs
 
-Phase 9 establishes a robust data ingestion pipeline and pedagogical benchmarking studio for SLOTWISE, enabling university administrators to upload complex student course rosters, validate relational constraints prior to database writes, and experiment with realistic academic datasets:
+1. **Heuristic Suboptimality of Greedy Coloring:**
+   - Welsh-Powell is a polynomial-time heuristic ($O(|V|^2)$). While it frequently finds optimal or near-optimal solutions on academic conflict graphs, it cannot mathematically guarantee the minimal chromatic number $\chi(G)$ on arbitrary graph topologies.
+2. **Worst-Case Exponential Complexity of Backtracking:**
+   - Computing the exact chromatic number $\chi(G)$ is NP-complete. On extremely dense graphs ($D > 0.7$) with $|V| > 50$, Backtracking may exhaust node limits or timeout. SLOTWISE safeguards server responsiveness via configurable `max_nodes` and `timeout_seconds`.
+3. **Single-Node SQLite Concurrency:**
+   - The current storage engine uses SQLite with WAL mode. While fast and zero-configuration, SQLite enforces single-writer locking. For enterprise university deployments with hundreds of concurrent schedulers, the SQLAlchemy layer is configured to allow seamless migration to PostgreSQL by updating `DATABASE_URL`.
+4. **Development Authentication Prototype:**
+   - The current authentication system provides responsive signup/login flows, demo user quick-selection, and token simulation. Production enterprise deployment would integrate with university Single Sign-On (SAML 2.0 / OAuth2 / OIDC).
+5. **Interactive Canvas Rendering Density:**
+   - The React Flow interactive canvas is optimized for up to ~200 concurrent examination vertices. For institutional catalogs exceeding 500 courses, switching the view to the Tabular or Swimlane layout provides optimal rendering performance.
 
-### Multi-Type CSV Ingestion Pipeline
+---
 
-- **Three Dedicated Dataset Types:**
-  1. **Examinations (`exams`):**
-     - Required columns: `exam_code`, `subject_name`.
-     - Optional columns: `department`, `semester`, `duration` (enforced integer $> 0$).
-  2. **Students (`students`):**
-     - Required columns: `student_id`.
-     - Optional columns: `student_name` / `display_name`.
-  3. **Course Enrolments (`enrolments`):**
-     - Required columns: `student_id`, `exam_code`.
-     - Referential integrity: Enforces that both student and examination exist in the database prior to enrolment.
-- **Strict Pre-Flight Validation Engine:**
-  - Operational guards: Max file size 5MB, max batch size 5,000 rows.
-  - Multi-encoding support: Automatic fallback across `utf-8-sig` (with BOM), `utf-8`, and `latin-1`.
-  - Header validation: Detects missing mandatory headers and surface clear schema guidance before processing rows.
-  - Row-level diagnostics: Validates mandatory values, non-negative durations, duplicate keys in the uploaded file, and existing records in the database.
-  - Downloadable Validation Audit Report (`GET /api/imports/reports/{preview_id}`): Exports an RFC 4180 CSV containing `CSV Line Number,Validation Status,Errors,Warnings,Input Record Snapshot`.
-  - RFC 4180 CSV Templates (`GET /api/imports/templates/{import_type}`): Pre-formatted downloadable templates with sample rows for all three dataset types.
+## 19. Demonstration Guide & Benchmark Walkthrough
 
-### Transactional Commit Strategies
+Use the built-in **Standard University Science & Engineering Benchmark (v2.0)** for repeatable demonstrations and presentations.
 
-- **Two Distinct Import Strategies:**
-  1. **Atomic All-or-Nothing (Strict):** Commits the entire file only if 100% of parsed rows pass validation. If even one fatal error exists, the database transaction rolls back completely.
-  2. **Valid-Only (Permissive):** Commits all valid records while safely skipping invalid or duplicate rows.
-- **Topological Conflict Graph Impact:**
-  - Database commits trigger immediate recomputation of the conflict graph ($|V|$ and $|E|$) and regenerate the SHA-256 graph fingerprint.
-  - Automatically identifies whether previously generated timetable schedules are now stale or invalidated due to new courses or conflicting enrolments.
+### Benchmark Ground-Truth Specifications
+- **Examinations ($|V|$):** 15 courses across 6 departments.
+- **Students:** 36 students distributed across 5 cohorts.
+- **Enrolments:** 85 course enrolments.
+- **Conflict Edges ($|E|$):** 41 unique conflict edges.
+- **Maximum Degree ($\Delta(G)$):** 10 (`MATH101` and `PHYS101` each conflict with 10 courses).
+- **Upper Bound ($\Delta(G) + 1$):** 11 time slots.
+- **Isolated Component ($d=0$):** `ENG101` (Academic Writing) has zero co-enrolment conflicts.
+- **Exact Chromatic Number ($\chi(G)$):** **6 time slots**.
 
-### Realistic Academic Sample Dataset Studio
+---
 
-- **Standard University Science & Engineering Benchmark (v2.0):**
-  - **15 Examinations:** Spanning Computer Science (`CS101`, `CS201`, `CS301`, `CS401`), Mathematics (`MATH101`, `MATH201`, `MATH301`), Physics (`PHYS101`, `PHYS201`), Chemistry (`CHEM101`), Biology (`BIO101`, `BIO201`), Economics (`ECON101`, `ECON201`), and Humanities (`ENG101`).
-  - **36 Students & 85 Course Enrolments:** Distributed across 5 realistic interdisciplinary cohorts.
-  - **High-Conflict Hubs:** `CS101`, `MATH101`, and `PHYS101` model core prerequisite bottlenecks with high vertex degrees.
-  - **Isolated Disjoint Component:** `ENG101` has degree $d(\text{ENG101}) = 0$ (single-course student enrolment), testing algorithmic handling of disconnected graphs.
-- **Two Loading Modes:**
-  1. **Append Mode (Safe):** Idempotently adds missing sample courses, students, and enrolments without altering or deleting existing user data.
-  2. **Replace Mode (Clean Slate):** Clears course, student, and enrolment records and loads the complete benchmark. (Protected by a frontend confirmation modal; saved timetable schedules are never destroyed).
-- **Preview Endpoint (`GET /api/imports/sample-dataset/preview`):** Computes structural metrics, projected edge counts, and isolated courses statically without touching the database.
+### Step-by-Step 5-Minute Demonstration Script
 
-### Frontend Studio Interface (`DataImportPage.tsx`)
+| Step | Action | Expected Observed Result | Pedagogical Talking Point |
+|---|---|---|---|
+| **1. Overview** | Navigate to `/` | Public landing page displays brand, DAA value proposition, feature highlights. | Highlight real-world university exam conflict challenge and DAA graph coloring solution. |
+| **2. Login** | Click **"Sign In"** $\to$ Click **"Demo Scheduler"** button | Authenticates instantly and enters the workspace at `/dashboard`. | Seamless onboarding demonstrating institutional role-based access. |
+| **3. Load Data** | Navigate to `/data-import` $\to$ **Sample Dataset Studio** $\to$ Click **"Load Benchmark Dataset"** | Loads 15 exams, 36 students, 85 enrolments. Banner reports 15 vertices and 41 conflict edges. | Demonstrates transactional sample data studio and pre-flight validation. |
+| **4. Graph Explorer** | Navigate to `/explorer` | 15-node interactive graph appears. `MATH101` and `PHYS101` are large hubs; `ENG101` is an isolated node. | Visualizes the conflict graph: vertices = courses, edges = shared students. Click `MATH101` to view its 10 conflicting courses. |
+| **5. Greedy Solver** | Navigate to `/laboratory` $\to$ Select **Greedy Coloring** $\to$ Welsh-Powell $\to$ Click **"Run Scheduling Algorithm"** | Solves in $< 2$ ms. Status: `COMPLETED`. Slots used: **6**. Certificate: `100% Conflict-Free`. | Explains Welsh-Powell descending degree ordering. Achieves optimal 6 slots (far below $\Delta + 1 = 11$). |
+| **6. Backtracking Search** | Select **Backtracking Search** $\to$ Enter Target Slots $k = 5$ $\to$ Click **"Run Scheduling Algorithm"** | Solves in $< 5$ ms. Status: `INFEASIBLE`. Narrative: *"Mathematically proved no valid timetable exists with $\le 5$ slots."* | Demonstrates exact DAA state-space search proving mathematical infeasibility ($\chi(G) > 5$). |
+| **7. Exact Search** | In Backtracking, set $k = 6$ $\to$ Click **"Run Scheduling Algorithm"** | Solves with status `COMPLETED`. Slots used: **6**. | Proves that the exact chromatic number is $\chi(G) = 6$. |
+| **8. Run Both** | Click **"Run Both"** $\to$ Click **"Run Comparison"** | Comparative table renders comparing Greedy ($O(|V|^2)$) vs. Backtracking ($O(k^{|V|})$). | Direct pedagogical comparison of heuristic vs. exact algorithms on the identical snapshot. |
+| **9. Save Timetable** | Click **"Save as Named Timetable"** $\to$ Name it `Fall 2026 Official Finals` $\to$ Save | Saved with UUID, stored in SQLite database. | Demonstrates persistence with independent validation enforcement. |
+| **10. Calendar View** | Navigate to `/timetable` | Shows 6 color-coded slot swimlanes. Course cards show student rosters and non-conflict proof. | Bridges mathematical colors with administrative academic calendar slots. |
+| **11. Export & Print** | Click **"Export CSV"** $\to$ Click **"Print"** | Downloads RFC 4180 CSV. Print preview renders clean university schedule without UI controls. | Administrative utility for student publication and notice boards. |
+| **12. Staleness Detection** | Navigate to `/data-import` $\to$ Add new enrolment or course $\to$ Return to `/timetable` | Schedule displays an amber **"Stale Schedule"** warning banner. | Cryptographic SHA-256 fingerprinting ensures outdated schedules are never mistaken for current truth. |
 
-- Accessible via `/data-import`, `/app/import-export`, and `/app/data-import`.
-- **Three-Tab Studio Layout:**
-  1. **CSV Batch Importer:** Stepper workflow guiding users from dataset type selection to file dropzone, live validation preview table with status filtering (All, Valid, Errors, Warnings), strategy selection, and post-commit conflict impact banner.
-  2. **Sample Dataset Studio:** Overview hero card, live metric pills, conflict hub diagnostic cards, append vs. replace mode selectors, and confirmation dialogs.
-  3. **Template & Schema Specifications:** Visual schema cards detailing column constraints and one-click download buttons for all templates.
+---
 
-### Verification & Test Suite Summary
+## License
 
-```bash
-# Complete backend test suite (118 passing tests)
-.venv/bin/pytest -v
-
-# Complete frontend test suite (73 passing tests across 11 test files)
-cd frontend && npm test -- --run
-
-# Production build verification
-cd frontend && npm run build
-```
-
+Developed as a University Design and Analysis of Algorithms (DAA) Capstone Project. Distributed under the MIT License.

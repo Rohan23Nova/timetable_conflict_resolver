@@ -106,3 +106,25 @@ def export_schedule_csv(
             "Cache-Control": "no-cache",
         },
     )
+
+
+@router.get(
+    "/{schedule_id}/export/json",
+    summary="Export schedule as JSON",
+    description="Download complete timetable schedule as structured JSON.",
+)
+def export_schedule_json(
+    schedule_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Generate and return JSON export file response."""
+    schedule = ScheduleService.get_schedule(db, schedule_id)
+    return Response(
+        content=schedule.model_dump_json(indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="timetable_{schedule_id}.json"',
+            "Cache-Control": "no-cache",
+        },
+    )
+
