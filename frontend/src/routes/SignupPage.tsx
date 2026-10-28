@@ -10,8 +10,8 @@ import {
   WarningCircle,
   Check,
   X,
-  Info,
   ShieldCheck,
+  Sparkle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -107,6 +107,15 @@ export const SignupPage: React.FC = () => {
     }
   };
 
+  const handleAutoFill = () => {
+    const randomNum = Math.floor(Math.random() * 900 + 100);
+    setFullName("Dr. Eleanor Vance");
+    setEmail(`scheduler_${randomNum}@university.edu`);
+    setPassword("ExamScheduler2026#");
+    setConfirmPassword("ExamScheduler2026#");
+    setErrors({});
+  };
+
   return (
     <div className="min-h-screen bg-base flex flex-col justify-between p-4 sm:p-6 lg:p-8">
       {/* Top Bar with Back to Landing Link */}
@@ -119,9 +128,15 @@ export const SignupPage: React.FC = () => {
           <span>Back to Landing Page</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="teal" size="sm" dot>
-            Phase 3 Auth Studio
-          </Badge>
+          {backendAvailable ? (
+            <Badge variant="teal" size="sm" dot>
+              Auth Service Online
+            </Badge>
+          ) : (
+            <Badge variant="amber" size="sm" dot>
+              Connecting...
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -151,22 +166,18 @@ export const SignupPage: React.FC = () => {
 
         <Card variant="default" className="shadow-elevated">
           <CardContent className="p-6 sm:p-8 space-y-5">
-            {/* Backend Connectivity Status Notification */}
-            {backendAvailable === false && (
-              <div
-                role="status"
-                className="p-3.5 rounded-lg bg-accent-amber-muted/40 border border-accent-amber/30 text-xs text-content-secondary flex items-start gap-2.5 leading-relaxed"
+            {/* Quick Auto-Fill helper */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-content-primary">Account Details</span>
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                className="text-[11px] text-accent-amber hover:text-accent-amber-hover flex items-center gap-1 font-medium transition-colors"
               >
-                <Info size={16} className="text-accent-amber flex-shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-content-primary font-semibold block">
-                    Backend Service Integration Notice
-                  </strong>
-                  The signup interface and password validation rules are live. Real FastAPI user
-                  persistence will be connected in Phase 4.
-                </div>
-              </div>
-            )}
+                <Sparkle size={13} weight="fill" />
+                <span>Auto-fill sample data</span>
+              </button>
+            </div>
 
             {/* General Submission Error Banner */}
             {errors.general && (
@@ -327,7 +338,7 @@ export const SignupPage: React.FC = () => {
         {/* Security Disclosures */}
         <div className="mt-6 text-center text-[11px] text-content-muted flex items-center justify-center gap-1.5">
           <ShieldCheck size={14} className="text-accent-teal" />
-          <span>Zero plaintext password retention policy • Phase 3</span>
+          <span>PBKDF2 SHA-256 salted password hashing & session management</span>
         </div>
       </div>
 

@@ -7,7 +7,6 @@ import {
   Envelope,
   ArrowLeft,
   WarningCircle,
-  Info,
   ShieldCheck,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
@@ -74,6 +73,24 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const handleQuickLogin = async (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setErrors({});
+    setIsSubmitting(true);
+    try {
+      await login({ email: demoEmail, password: demoPass });
+      navigate(returnUrl, { replace: true });
+    } catch (err: unknown) {
+      const authErr = err as AuthError;
+      setErrors({
+        general: authErr.message || "Authentication failed. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-base flex flex-col justify-between p-4 sm:p-6 lg:p-8">
       {/* Top Bar with Back to Landing Link */}
@@ -86,9 +103,15 @@ export const LoginPage: React.FC = () => {
           <span>Back to Landing Page</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="amber" size="sm" dot>
-            Phase 3 Auth Studio
-          </Badge>
+          {backendAvailable ? (
+            <Badge variant="teal" size="sm" dot>
+              Auth Service Online
+            </Badge>
+          ) : (
+            <Badge variant="amber" size="sm" dot>
+              Connecting...
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -118,22 +141,42 @@ export const LoginPage: React.FC = () => {
 
         <Card variant="default" className="shadow-elevated">
           <CardContent className="p-6 sm:p-8 space-y-5">
-            {/* Backend Connectivity Status Notification */}
-            {backendAvailable === false && (
-              <div
-                role="status"
-                className="p-3.5 rounded-lg bg-accent-amber-muted/40 border border-accent-amber/30 text-xs text-content-secondary flex items-start gap-2.5 leading-relaxed"
-              >
-                <Info size={16} className="text-accent-amber flex-shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-content-primary font-semibold block">
-                    Backend Service Integration Notice
-                  </strong>
-                  The authentication UI and validation contracts are fully implemented. Fast-API auth
-                  endpoints will be connected in Phase 4.
-                </div>
+            {/* Quick Demo Accounts Selection */}
+            <div className="p-3 rounded-lg bg-subtle/80 border border-border-subtle space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-semibold text-content-secondary uppercase tracking-wider flex items-center gap-1">
+                  <ShieldCheck size={13} className="text-accent-amber" />
+                  Pre-configured Demo Accounts
+                </span>
+                <span className="text-content-muted text-[10px]">Click to auto-fill</span>
               </div>
-            )}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("admin@university.edu");
+                    setPassword("admin123");
+                    setErrors({});
+                  }}
+                  className="px-2.5 py-1.5 rounded bg-surface hover:bg-surface-hover border border-border-subtle hover:border-accent-amber text-left text-xs transition-colors flex flex-col"
+                >
+                  <span className="font-semibold text-content-primary">Dr. Eleanor Vance</span>
+                  <span className="text-[10px] text-content-muted">admin@university.edu</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("scheduler@university.edu");
+                    setPassword("scheduler123");
+                    setErrors({});
+                  }}
+                  className="px-2.5 py-1.5 rounded bg-surface hover:bg-surface-hover border border-border-subtle hover:border-accent-amber text-left text-xs transition-colors flex flex-col"
+                >
+                  <span className="font-semibold text-content-primary">Prof. Alan Turing</span>
+                  <span className="text-[10px] text-content-muted">scheduler@university.edu</span>
+                </button>
+              </div>
+            </div>
 
             {/* General Submission Error Banner */}
             {errors.general && (
@@ -151,7 +194,7 @@ export const LoginPage: React.FC = () => {
               <Input
                 label="Academic Email"
                 type="email"
-                placeholder="name@university.edu"
+                placeholder="admin@university.edu"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -210,6 +253,18 @@ export const LoginPage: React.FC = () => {
               </Button>
             </form>
 
+            {/* 1-Click Quick Demo Sign In */}
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full text-xs"
+              size="sm"
+              isLoading={isSubmitting}
+              onClick={() => handleQuickLogin("admin@university.edu", "admin123")}
+            >
+              ⚡ 1-Click Sign In as Demo Admin
+            </Button>
+
             {/* Link to Signup */}
             <div className="border-t border-border-subtle pt-4 text-center text-xs text-content-secondary">
               Don't have an academic account?{" "}
@@ -235,7 +290,7 @@ export const LoginPage: React.FC = () => {
         {/* Security Disclosures */}
         <div className="mt-6 text-center text-[11px] text-content-muted flex items-center justify-center gap-1.5">
           <ShieldCheck size={14} className="text-accent-teal" />
-          <span>Passkeys & Session encryption compliant • Phase 3</span>
+          <span>PBKDF2 SHA-256 salted password hashing & session management</span>
         </div>
       </div>
 

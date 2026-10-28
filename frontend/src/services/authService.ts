@@ -1,6 +1,8 @@
 import { AuthError, AuthResponse, LoginCredentials, SignupData, User } from "@/types/auth";
 
 const API_BASE_URL = "/api/v1/auth";
+const TOKEN_KEY = "slotwise_auth_token";
+const USER_KEY = "slotwise_auth_user";
 
 class AuthService {
   /**
@@ -22,7 +24,7 @@ class AuthService {
     } catch {
       return {
         isAvailable: false,
-        message: "Authentication backend service is currently disconnected (Phase 4).",
+        message: "Authentication backend service is currently unreachable.",
       };
     }
   }
@@ -53,7 +55,15 @@ class AuthService {
         } as AuthError;
       }
 
-      return await response.json();
+      const data: AuthResponse = await response.json();
+      if (data.token) {
+        localStorage.setItem(TOKEN_KEY, data.token);
+      }
+      if (data.user) {
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      }
+
+      return data;
     } catch (err: unknown) {
       if ((err as AuthError)?.code) {
         throw err;
@@ -61,7 +71,7 @@ class AuthService {
       // Network failure or backend server not running
       throw {
         message:
-          "Authentication server is currently unreachable. The backend API service is scheduled for activation in Phase 4.",
+          "Authentication server is currently unreachable. Please ensure the backend is running at http://127.0.0.1:8000.",
         code: "BACKEND_UNAVAILABLE",
         isBackendUnavailable: true,
       } as AuthError;
@@ -87,14 +97,22 @@ class AuthService {
         } as AuthError;
       }
 
-      return await response.json();
+      const resData: AuthResponse = await response.json();
+      if (resData.token) {
+        localStorage.setItem(TOKEN_KEY, resData.token);
+      }
+      if (resData.user) {
+        localStorage.setItem(USER_KEY, JSON.stringify(resData.user));
+      }
+
+      return resData;
     } catch (err: unknown) {
       if ((err as AuthError)?.code) {
         throw err;
       }
       throw {
         message:
-          "Registration service is currently unreachable. The backend API service is scheduled for activation in Phase 4.",
+          "Registration service is currently unreachable. Please ensure the backend is running at http://127.0.0.1:8000.",
         code: "BACKEND_UNAVAILABLE",
         isBackendUnavailable: true,
       } as AuthError;
@@ -105,17 +123,30 @@ class AuthService {
    * Retrieve current authenticated user profile.
    */
   async getCurrentUser(): Promise<User | null> {
+    const token = localStorage.getItem(TOKEN_KEY);
     try {
       const response = await fetch(`${API_BASE_URL}/me`, {
         method: "GET",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
+
       if (response.ok) {
-        return await response.json();
+        const user = await response.json();
+        if (user) {
+          localStorage.setItem(USER_KEY, JSON.stringify(user));
+          return user;
+        }
       }
-      return null;
+
+      // If token verification fails or no user returned, fall back to cached user if present
+      const cached = localStorage.getItem(USER_KEY);
+      return cached ? JSON.parse(cached) : null;
     } catch {
-      return null;
+      const cached = localStorage.getItem(USER_KEY);
+      return cached ? JSON.parse(cached) : null;
     }
   }
 
@@ -123,13 +154,20 @@ class AuthService {
    * Terminate active session.
    */
   async logout(): Promise<void> {
+    const token = localStorage.getItem(TOKEN_KEY);
     try {
       await fetch(`${API_BASE_URL}/logout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
     } catch {
       // Graceful local cleanup
+    } finally {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     }
   }
 }

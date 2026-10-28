@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import {
   Sun,
   Moon,
@@ -7,8 +7,11 @@ import {
   MagnifyingGlass,
   User,
   ShieldCheck,
+  SignOut,
+  SignIn,
 } from "@phosphor-icons/react";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { Breadcrumb, BreadcrumbItem } from "@/components/ui/Breadcrumb";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { BackendStatusBadge } from "./BackendStatusBadge";
@@ -20,7 +23,17 @@ export interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar }) => {
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/login");
+    }
+  };
 
   // Find current route title from navItems
   const currentNav = navItems.find((item) =>
@@ -106,25 +119,58 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileSidebar }) => {
           </button>
         </Tooltip>
 
-        {/* User Menu Display (Development evaluation access) */}
-        <Tooltip
-          content="Development Mode: Data operations are local. Multi-user authentication is scheduled for later phases."
-          position="bottom"
-          className="text-[11px]"
-        >
-          <div className="flex items-center gap-2 pl-2 border-l border-border-subtle cursor-default">
-            <div className="w-8 h-8 rounded-full bg-subtle border border-border-strong flex items-center justify-center text-content-muted">
-              <User size={16} />
+        {/* User Menu Display */}
+        {user ? (
+          <div className="flex items-center gap-2 pl-2 border-l border-border-subtle">
+            <div className="w-8 h-8 rounded-full bg-accent-amber/15 border border-accent-amber/30 flex items-center justify-center text-accent-amber font-semibold text-xs">
+              {user.fullName ? user.fullName.charAt(0).toUpperCase() : <User size={16} />}
             </div>
             <div className="hidden xl:flex flex-col text-left">
               <span className="text-xs font-semibold text-content-primary flex items-center gap-1">
-                Academic Admin
-                <ShieldCheck size={12} className="text-accent-teal" />
+                {user.fullName}
+                {user.role === "admin" && <ShieldCheck size={12} className="text-accent-teal" />}
               </span>
-              <span className="text-[10px] text-content-muted">Development Mode</span>
+              <span className="text-[10px] text-content-muted capitalize">
+                {user.role} {user.institution ? `• ${user.institution}` : ""}
+              </span>
             </div>
+            <Tooltip content="Sign out of current session" position="bottom" className="text-[11px]">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="p-1.5 ml-1 rounded-md text-content-muted hover:text-accent-rose hover:bg-subtle transition-colors focus-visible:ring-1"
+                aria-label="Sign out"
+              >
+                <SignOut size={16} />
+              </button>
+            </Tooltip>
           </div>
-        </Tooltip>
+        ) : (
+          <Tooltip
+            content="Development Mode: Data operations are local. Click Sign In to authenticate."
+            position="bottom"
+            className="text-[11px]"
+          >
+            <div className="flex items-center gap-2 pl-2 border-l border-border-subtle">
+              <Link
+                to="/login"
+                className="flex items-center gap-2 text-content-secondary hover:text-content-primary transition-colors"
+                aria-label="Sign in"
+              >
+                <div className="w-8 h-8 rounded-full bg-subtle border border-border-strong flex items-center justify-center text-content-muted">
+                  <User size={16} />
+                </div>
+                <div className="hidden xl:flex flex-col text-left">
+                  <span className="text-xs font-semibold text-content-primary flex items-center gap-1">
+                    Sign In
+                    <SignIn size={12} className="text-accent-amber" />
+                  </span>
+                  <span className="text-[10px] text-content-muted">Development Mode</span>
+                </div>
+              </Link>
+            </div>
+          </Tooltip>
+        )}
       </div>
     </header>
   );

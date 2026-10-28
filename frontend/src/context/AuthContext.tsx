@@ -30,11 +30,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const currentUser = await authService.getCurrentUser();
         setUser(currentUser);
       } else {
-        setUser(null);
+        const cached = localStorage.getItem("slotwise_auth_user");
+        setUser(cached ? JSON.parse(cached) : null);
       }
     } catch {
       setBackendAvailable(false);
-      setUser(null);
+      const cached = localStorage.getItem("slotwise_auth_user");
+      setUser(cached ? JSON.parse(cached) : null);
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +103,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    return {
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      backendAvailable: null,
+      login: async () => {},
+      signup: async () => {},
+      logout: async () => {},
+      checkStatus: async () => {},
+    };
   }
   return context;
 };

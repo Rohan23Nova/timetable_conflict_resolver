@@ -9,9 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.app.config import settings
-from backend.app.database import init_db
+from backend.app.database import SessionLocal, init_db
 from backend.app.routers import api_router
+from backend.app.routers.auth import router as auth_router
 from backend.app.routers.health import router as health_router
+from backend.app.services.auth_service import AuthService
 
 
 logger = logging.getLogger("slotwise")
@@ -21,6 +23,11 @@ logger = logging.getLogger("slotwise")
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager to initialize database tables on startup."""
     init_db()
+    db = SessionLocal()
+    try:
+        AuthService.ensure_default_users(db)
+    finally:
+        db.close()
     yield
 
 
@@ -50,8 +57,9 @@ app.add_middleware(
 # Root health probes for container orchestrators and ingress controllers
 app.include_router(health_router)
 
-# Register API routers under /api
+# Register API routers under /api and compatibility prefix /api/v1/auth
 app.include_router(api_router, prefix=settings.api_prefix)
+app.include_router(auth_router, prefix="/api/v1/auth")
 
 
 @app.exception_handler(StarletteHTTPException)
